@@ -234,7 +234,8 @@ test("adds the institutional intelligence module without replacing existing func
   assert.match(intelligence, /Espacios arrendados \/ inventario comercial cargado/);
   assert.match(intelligence, /Fuente pendiente/);
   assert.match(intelligence, /Cargar Excel y generar tablero/);
-  assert.match(intelligence, /Imprimir \/ guardar PDF/);
+  assert.match(intelligence, /if \(view === "reports"\) \{\s*return null;/);
+  assert.doesNotMatch(intelligence, /Imprimir \/ guardar PDF/);
   assert.doesNotMatch(intelligence, /calidad y conciliaci[oó]n/i);
   assert.match(styles, /Inteligencia y Plan Comercial/);
   assert.match(styles, /Montserrat AIFA/);

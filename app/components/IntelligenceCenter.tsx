@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { locationOptions, type LocalRecord } from "@/app/types";
 
 export type IntelligenceView = "dashboard" | "kpis" | "reports" | "alerts";
@@ -102,8 +102,6 @@ export default function IntelligenceCenter({
   onUpload: () => void;
   onChangeView: (view: IntelligenceView) => void;
 }) {
-  const [lastGenerated, setLastGenerated] = useState<string | null>(null);
-
   const intelligence = useMemo(() => {
     const records: LocatedRecord[] = locationOptions.flatMap((location) =>
       (datasets[location.id] ?? []).map((record) => ({
@@ -301,7 +299,6 @@ export default function IntelligenceCenter({
         ]),
       ],
     );
-    setLastGenerated("Matriz de KPIs");
   };
 
   const downloadAlerts = () => {
@@ -318,8 +315,11 @@ export default function IntelligenceCenter({
         ]),
       ],
     );
-    setLastGenerated("Relación de alertas");
   };
+
+  if (view === "reports") {
+    return null;
+  }
 
   if (!intelligence.records.length) {
     return (
@@ -392,20 +392,6 @@ export default function IntelligenceCenter({
           </table>
         </div>
         <div className="intelligence-note"><strong>Integración progresiva:</strong> los indicadores sin fuente quedan preparados y se activarán al añadir las columnas u hojas correspondientes al Excel.</div>
-      </section>
-    );
-  }
-
-  if (view === "reports") {
-    return (
-      <section className="intelligence-center" aria-label="Reportes ejecutivos de Inteligencia Comercial">
-        <div className="intelligence-heading compact"><div><span className="section-kicker">Salidas institucionales</span><h2>Reportes ejecutivos</h2><p>Documentos generados con los resultados vigentes de la carga en memoria.</p></div><div className="intelligence-source"><span>Fuente activa</span><strong>{sourceFile}</strong><small>{sourceDate}</small></div></div>
-        <div className="intelligence-report-grid">
-          <article><span className="report-format-mark">PDF</span><div><h3>Informe ejecutivo SSC</h3><p>Tablero, indicadores rectores, alertas y fuente utilizada.</p></div><button type="button" className="primary-button" onClick={() => { setLastGenerated("Informe ejecutivo SSC"); window.print(); }}>Imprimir / guardar PDF</button></article>
-          <article><span className="report-format-mark csv">CSV</span><div><h3>Matriz de KPIs</h3><p>Resultado, fórmula, fuente, periodicidad, meta y estado.</p></div><button type="button" className="secondary-button" onClick={downloadKpis}>Descargar matriz</button></article>
-          <article><span className="report-format-mark csv">CSV</span><div><h3>Relación de alertas</h3><p>Prioridad, registros involucrados, responsable y acción sugerida.</p></div><button type="button" className="secondary-button" onClick={downloadAlerts} disabled={!intelligence.alerts.length}>Descargar alertas</button></article>
-        </div>
-        <div className="intelligence-report-state"><span>Estado del periodo</span><strong>{lastGenerated ? `${lastGenerated} generado en esta sesión` : "Selecciona una salida para generar el archivo"}</strong><small>La fecha, la fuente y los resultados quedan visibles dentro de cada salida.</small></div>
       </section>
     );
   }
