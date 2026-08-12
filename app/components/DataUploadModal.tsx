@@ -94,7 +94,7 @@ const aliases: Record<string, ParsedField> = {
   "poliza de r c": "liabilityPolicyStatus",
   "proyecto de obra": "projectStatus",
   "situacion del contrato": "contractStatus",
-  "datos de contacto": "operationalStatus",
+  "datos de contacto": "contactData",
   gestor: "manager",
   zona: "sourceZone",
   "zona comercial": "sourceZone",
@@ -452,7 +452,8 @@ function parseRows(rows: SheetData, locationId: string, sheetName: string, contr
       projectStatus: optionalText(raw.projectStatus ?? null),
       contractStatus: optionalText(raw.contractStatus ?? null)
         ?? (contractStage === "agreements" ? optionalText(raw.situacion ?? null) : null),
-      operationalStatus: optionalText(raw.operationalStatus ?? null),
+        operationalStatus: optionalText(raw.operationalStatus ?? null),
+      contactData: optionalText(raw.contactData ?? null),
       manager: optionalText(raw.manager ?? null),
       contractStage,
       contractSourceSheet: sheetName,
@@ -571,12 +572,20 @@ export default function DataUploadModal({ open, onClose, onSuccess }: {
         </div>
         <p className="upload-intro">Selecciona un solo archivo de Excel. Se leerá únicamente en este navegador y permanecerá en memoria durante la sesión. No se enviará ni se guardará en ningún servidor.</p>
 
-        <label className={`file-drop ${allParsedSheets.length ? "file-ready" : ""}`}>
+        <label className={`file-drop ${allParsedSheets.length ? "file-ready" : ""}${parsing ? " is-parsing" : ""}`}>
           <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(event) => selectFile(event.target.files?.[0])} />
           <span className="file-icon">XLSX</span>
           <strong>{parsing ? "Leyendo las zonas disponibles…" : filename || "Selecciona el libro consolidado"}</strong>
           <small>Admite zonas comerciales y las hojas Contratos Cancelados · Contratos Fenecidos · Convenios · Indicador ETP opcional: CAPACIDAD (D2)</small>
+          {parsing && <span className="file-reading-progress" aria-hidden="true"><i /><i /><i /></span>}
         </label>
+
+        {parsing && (
+          <div className="upload-processing-status" role="status" aria-live="polite">
+            <i aria-hidden="true" />
+            <div><strong>Procesando el libro</strong><span>Leyendo hojas, validando zonas y preparando indicadores.</span></div>
+          </div>
+        )}
 
         {allParsedSheets.length > 0 && (
           <>

@@ -65,8 +65,8 @@ test("supports partial-zone workbooks and the ETP contractual columns", async ()
   assert.match(dashboard, /Módulos de SIGCO/);
   assert.match(dashboard, /<span>02<\/span>Locales/);
   assert.match(dashboard, /<span>03<\/span>Contratos/);
-  assert.match(dashboard, /<span>04<\/span>Relación/);
-  assert.match(dashboard, /Tabla combinada/);
+  assert.match(dashboard, /<span>04<\/span>Finanzas/);
+  assert.doesNotMatch(dashboard, /<span>04<\/span>Relación/);
   assert.match(contracts, /Resumen de contratos/);
   assert.match(contracts, /Relación Local–Contrato/);
   assert.match(contracts, /Renta mensual/);
@@ -150,7 +150,11 @@ test("creates a reusable ETP notification center from the two contract dates", a
   assert.match(upload, /"fecha de conclusion": "fechaConclusion"/);
   assert.match(upload, /parseExcelDate/);
   assert.match(dashboard, /notification-button/);
-  assert.match(dashboard, /setShowCommercialAlerts\(nextCommercialAlerts\.length > 0\)/);
+  assert.match(dashboard, /setShowCommercialAlerts\(false\)/);
+  assert.doesNotMatch(dashboard, /setShowCommercialAlerts\(nextCommercialAlerts\.length > 0\)/);
+  assert.match(dashboard, /moduleMenuSentinelRef/);
+  assert.match(dashboard, /module-nav-fixed/);
+  assert.match(dashboard, /window\.addEventListener\("scroll", updateModuleMenuPosition/);
   assert.match(alerts, /daysRemaining > 30/);
   assert.match(alerts, /Centro de notificaciones/);
   assert.match(alerts, /Vencido|Vence hoy|Crítico|Próximo/);
@@ -195,7 +199,7 @@ test("organizes navigation into primary modules and contextual views", async () 
   const dashboard = await readFile(new URL("../app/DashboardClient.tsx", import.meta.url), "utf8");
   const contracts = await readFile(new URL("../app/components/ContractCenter.tsx", import.meta.url), "utf8");
 
-  assert.match(dashboard, /type PrimaryModule = "home" \| "locals" \| "contracts" \| "relations" \| "reports"/);
+  assert.match(dashboard, /type PrimaryModule = "home" \| "locals" \| "contracts" \| "finances" \| "reports"/);
   assert.match(dashboard, /Resumen global/);
   assert.match(dashboard, /Resumen de zona/);
   assert.match(dashboard, /En preformalización/);
@@ -204,8 +208,8 @@ test("organizes navigation into primary modules and contextual views", async () 
   assert.match(dashboard, /Cancelados/);
   assert.match(dashboard, /Fenecidos/);
   assert.match(dashboard, /Convenios/);
-  assert.match(dashboard, /Casos por atender/);
-  assert.match(dashboard, /Zona de trabajo/);
+  assert.match(dashboard, /Resumen financiero/);
+  assert.match(dashboard, /Zona comercial/);
   assert.match(contracts, /preformalization/);
   assert.match(contracts, /formalization/);
   assert.match(contracts, /cancelled/);
@@ -234,4 +238,48 @@ test("adds the institutional intelligence module without replacing existing func
   assert.doesNotMatch(intelligence, /calidad y conciliaci[oó]n/i);
   assert.match(styles, /Inteligencia y Plan Comercial/);
   assert.match(styles, /Montserrat AIFA/);
+});
+
+test("adds the first-stage finance dashboard and removes Relation from primary navigation", async () => {
+  const dashboard = await readFile(new URL("../app/DashboardClient.tsx", import.meta.url), "utf8");
+  const finance = await readFile(new URL("../app/components/FinanceCenter.tsx", import.meta.url), "utf8");
+
+  assert.match(dashboard, /<span>03<\/span>Contratos/);
+  assert.match(dashboard, /<span>04<\/span>Finanzas/);
+  assert.match(dashboard, /<span>05<\/span>Reportes/);
+  assert.doesNotMatch(dashboard, /<span>04<\/span>Relación/);
+  assert.match(dashboard, /<FinanceCenter records=\{financeRecords\}/);
+  assert.match(dashboard, /financeLocationId === "all" \? Object\.values\(datasets\)\.flat\(\)/);
+  assert.match(finance, /isOperating\(record\) && record\.monthlyRent !== null/);
+  assert.match(finance, /projectedMonths\(record\.renewalDate\)/);
+  assert.match(finance, /Renta mensual contratada/);
+  assert.match(finance, /Proyección próximos 12 meses/);
+  assert.match(finance, /Costo promedio por m²/);
+  assert.match(finance, /Locales con participación/);
+  assert.match(finance, /Renta mensual por zona/);
+  assert.match(finance, /Distribución de renta mensual/);
+  assert.match(finance, /Participación e histórico mensual/);
+  assert.match(finance, /Datos de Cobranza pendientes/);
+});
+
+test("uses subtle transitions for navigation and Excel processing with reduced-motion support", async () => {
+  const dashboard = await readFile(new URL("../app/DashboardClient.tsx", import.meta.url), "utf8");
+  const upload = await readFile(new URL("../app/components/DataUploadModal.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+
+  assert.match(dashboard, /moduleTransitionKey/);
+  assert.match(dashboard, /className="module-content-transition"/);
+  assert.match(upload, /className="upload-processing-status"/);
+  assert.match(upload, /Leyendo hojas, validando zonas y preparando indicadores/);
+  assert.match(styles, /@keyframes module-enter/);
+  assert.match(styles, /@keyframes card-enter/);
+  assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/);
+});
+
+test("keeps the SIGCO institutional brand as a non-interactive element", async () => {
+  const dashboard = await readFile(new URL("../app/DashboardClient.tsx", import.meta.url), "utf8");
+
+  assert.match(dashboard, /<div className="brand">/);
+  assert.doesNotMatch(dashboard, /returnToGeneralHome/);
+  assert.doesNotMatch(dashboard, /className="brand" href=|className="brand"[^>]*onClick/);
 });

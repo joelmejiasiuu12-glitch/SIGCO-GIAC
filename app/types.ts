@@ -44,6 +44,7 @@ export type LocalRecord = {
   projectStatus: string | null;
   contractStatus: string | null;
   operationalStatus: string | null;
+  contactData: string | null;
   manager: string | null;
   contractStage?: ContractStage | null;
   contractSourceSheet?: string | null;

@@ -76,19 +76,49 @@ function documentNeedsAttention(value: string | null) {
 
 function stageForRecord(record: LocalRecord): ContractStage | null {
   if (record.contractStage) return record.contractStage;
-  const status = normalized([record.contractStatus, record.estatus, record.situacion, record.operationalStatus].filter(Boolean).join(" "));
-  if (status.includes("convenio")) return "agreements";
-  if (status.includes("cancel") || status.includes("rescind")) return "cancelled";
-  if (status.includes("fenec") || status.includes("vencid") || status.includes("concluid") || status.includes("terminad")) return "expired";
-  if (status.includes("preformal")) return "preformalization";
-  if (status.includes("formalizacion") && !status.includes("formalizado")) return "formalization";
-  if (!record.contractNumber && (record.contractPending || status.includes("proceso de asignacion"))) return "preformalization";
-  if (record.contractNumber && (
-    documentNeedsAttention(record.guaranteeStatus) ||
-    documentNeedsAttention(record.liabilityPolicyStatus) ||
-    documentNeedsAttention(record.projectStatus)
-  ) && !status.includes("formalizado") && !status.includes("vigente")) return "formalization";
-  if (record.contractNumber || status.includes("formalizado") || status.includes("vigente")) return "formalized";
+
+  const status = normalized(record.contractStatus);
+
+  if (!status) return null;
+
+  if (status.includes("convenio")) {
+    return "agreements";
+  }
+
+  if (
+    status.includes("cancel") ||
+    status.includes("rescind")
+  ) {
+    return "cancelled";
+  }
+
+  if (
+    status.includes("fenec") ||
+    status.includes("vencid") ||
+    status.includes("concluid") ||
+    status.includes("terminad")
+  ) {
+    return "expired";
+  }
+
+  if (status.includes("preformal")) {
+    return "preformalization";
+  }
+
+  if (
+    status.includes("formalizacion") &&
+    !status.includes("formalizado")
+  ) {
+    return "formalization";
+  }
+
+  if (
+    status.includes("formalizado") ||
+    status.includes("vigente")
+  ) {
+    return "formalized";
+  }
+
   return null;
 }
 
@@ -273,14 +303,15 @@ export default function ContractCenter({ records, locationName, mode = "summary"
         <span className="contract-zone-pill">{locationName}</span>
       </div>
 
-      <div className="contract-kpi-grid">
-        <ContractKpi label="En preformalización" value={preformalization} accent="#8a633f" />
-        <ContractKpi label="En formalización" value={formalization} accent="#39a9db" />
-        <ContractKpi label="Formalizados" value={formalized} accent="#00886f" />
-        <ContractKpi label="Cancelados / fenecidos" value={closed} accent="#ac182c" />
-        <ContractKpi label="Convenios" value={agreements} accent="#405364" />
-      </div>
-
+      {mode === "summary" && (
+  <div className="contract-kpi-grid">
+    <ContractKpi label="En preformalización" value={preformalization} accent="#8a633f" />
+    <ContractKpi label="En formalización" value={formalization} accent="#39a9db" />
+    <ContractKpi label="Formalizados" value={formalized} accent="#00886f" />
+    <ContractKpi label="Cancelados / fenecidos" value={closed} accent="#ac182c" />
+    <ContractKpi label="Convenios" value={agreements} accent="#405364" />
+  </div>
+)}
       <div className="contract-toolbar">
         <label className="contract-search"><span>Buscar contrato, marca o local</span><input value={query} onChange={(event) => { setQuery(event.target.value); resetPage(); }} placeholder="Ej. AIFA-DCS o LLENA-02" /></label>
         <label><span>Situación</span><select value={status} onChange={(event) => { setStatus(event.target.value); resetPage(); }}><option value="">Todas</option>{statuses.map((value) => <option key={value}>{value}</option>)}</select></label>

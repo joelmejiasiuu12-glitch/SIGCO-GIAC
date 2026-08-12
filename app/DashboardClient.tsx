@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import DataUploadModal from "./components/DataUploadModal";
 import CommercialAlertsModal, { buildCommercialAlerts } from "./components/CommercialAlerts";
-import ContractCenter, { ContractRelations } from "./components/ContractCenter";
+import ContractCenter from "./components/ContractCenter";
 import DirectoryAnalytics from "./components/DirectoryAnalytics";
+import FinanceCenter from "./components/FinanceCenter";
 import GlobalSummary from "./components/GlobalSummary";
 import IntelligenceCenter, { type IntelligenceView } from "./components/IntelligenceCenter";
 import ReportsCenter from "./components/ReportsCenter";
@@ -23,11 +24,10 @@ type FilterKey =
   | "gerencia";
 
 type SortKey = "nomenclatura" | "marca" | "metraje" | "estatus";
-type PrimaryModule = "home" | "locals" | "contracts" | "relations" | "reports" | "intelligence";
+type PrimaryModule = "home" | "locals" | "contracts" | "finances" | "reports" | "intelligence";
 type HomeView = "global" | "zone";
 type LocalView = "summary" | "directory";
 type ContractView = "summary" | "preformalization" | "formalization" | "formalized" | "cancelled" | "expired" | "agreements";
-type RelationView = "table" | "attention";
 
 const PAGE_SIZE = 15;
 type Dataset = Record<string, LocalRecord[]>;
@@ -197,11 +197,11 @@ function EmptyLocationState({ onUpload }: { onUpload: () => void }) {
 export default function DashboardClient() {
   const [activeModule, setActiveModule] = useState<PrimaryModule>("home");
   const [homeView, setHomeView] = useState<HomeView>("zone");
-  const [localView, setLocalView] = useState<LocalView>("summary");
+  const [, setLocalView] = useState<LocalView>("directory");
   const [contractView, setContractView] = useState<ContractView>("summary");
-  const [relationView, setRelationView] = useState<RelationView>("table");
   const [intelligenceView, setIntelligenceView] = useState<IntelligenceView>("dashboard");
   const [locationId, setLocationId] = useState("etp");
+  const [financeLocationId, setFinanceLocationId] = useState("etp");
   const [datasets, setDatasets] = useState<Dataset>(emptyDatasets);
   const [standaloneContractRecords, setStandaloneContractRecords] = useState<LocalRecord[]>([]);
   const [records, setRecords] = useState<LocalRecord[]>([]);
@@ -221,6 +221,8 @@ export default function DashboardClient() {
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [showAllFilters, setShowAllFilters] = useState(false);
+  const [isModuleMenuFixed, setIsModuleMenuFixed] = useState(false);
+  const moduleMenuSentinelRef = useRef<HTMLDivElement>(null);
 
   const currentLocation = locationOptions.find((location) => location.id === locationId) ?? locationOptions[0];
   const totalSessionRecords = Object.values(datasets).reduce((total, dataset) => total + dataset.length, 0);
@@ -229,6 +231,12 @@ export default function DashboardClient() {
     [datasets, standaloneContractRecords],
   );
   const commercialAlerts = useMemo(() => buildCommercialAlerts(datasets.etp ?? []), [datasets]);
+  const financeRecords = useMemo(
+    () => financeLocationId === "all" ? Object.values(datasets).flat() : datasets[financeLocationId] ?? [],
+    [datasets, financeLocationId],
+  );
+  const financeLocation = locationOptions.find((location) => location.id === financeLocationId);
+  const financeScopeLabel = financeLocationId === "all" ? "Todas las zonas comerciales" : financeLocation?.name ?? "Zona comercial";
   const primaryFilterKeys = primaryFiltersByLocation[locationId] ?? primaryFiltersByLocation.etp;
   const advancedFilterKeys = advancedFiltersByLocation[locationId] ?? [];
 
@@ -242,6 +250,20 @@ export default function DashboardClient() {
     window.addEventListener("beforeunload", warnBeforeLeaving);
     return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
   }, [datasets]);
+
+  useEffect(() => {
+    const updateModuleMenuPosition = () => {
+      const sentinelTop = moduleMenuSentinelRef.current?.getBoundingClientRect().top ?? 1;
+      setIsModuleMenuFixed(sentinelTop <= 0 && window.scrollY > 0);
+    };
+    updateModuleMenuPosition();
+    window.addEventListener("scroll", updateModuleMenuPosition, { passive: true });
+    window.addEventListener("resize", updateModuleMenuPosition);
+    return () => {
+      window.removeEventListener("scroll", updateModuleMenuPosition);
+      window.removeEventListener("resize", updateModuleMenuPosition);
+    };
+  }, []);
 
   const options = useMemo(() => {
     const keys = Object.keys(initialFilters) as FilterKey[];
@@ -413,12 +435,12 @@ export default function DashboardClient() {
     URL.revokeObjectURL(url);
   };
 
-  const isGlobalContext = activeModule === "contracts" || activeModule === "reports" || activeModule === "intelligence" || (activeModule === "home" && homeView === "global");
-  const contextRecordCount = isGlobalContext ? totalSessionRecords : records.length;
+  const isGlobalContext = activeModule === "contracts" || activeModule === "finances" || activeModule === "reports" || activeModule === "intelligence" || (activeModule === "home" && homeView === "global");
+  const contextRecordCount = activeModule === "finances" ? financeRecords.length : isGlobalContext ? totalSessionRecords : records.length;
   const heroTitle = activeModule === "home"
     ? homeView === "global" ? "Resumen global" : `Resumen de ${currentLocation.shortName}`
     : activeModule === "locals"
-      ? localView === "summary" ? `Locales de ${currentLocation.shortName}` : `Directorio de ${currentLocation.shortName}`
+  ? `Directorio de ${currentLocation.shortName}`
       : activeModule === "contracts"
         ? contractView === "preformalization" ? "Contratos en preformalización"
           : contractView === "formalization" ? "Contratos en formalización"
@@ -427,8 +449,8 @@ export default function DashboardClient() {
                 : contractView === "expired" ? "Contratos fenecidos"
                   : contractView === "agreements" ? "Convenios"
                     : "Resumen contractual"
-        : activeModule === "relations"
-          ? relationView === "attention" ? "Casos por atender" : "Relación Local–Contrato"
+        : activeModule === "finances"
+          ? "Resumen financiero"
           : activeModule === "intelligence"
             ? intelligenceView === "kpis" ? "Catálogo rector de KPIs" : intelligenceView === "reports" ? "Reportes ejecutivos" : intelligenceView === "alerts" ? "Alertas y semaforización" : "Inteligencia y Plan Comercial"
             : "Centro de Reportes";
@@ -440,19 +462,31 @@ export default function DashboardClient() {
       ? "Consulta el inventario físico y operativo de los espacios sin mezclarlo con el seguimiento detallado de los contratos."
     : activeModule === "contracts"
         ? "Consulta la cartera completa y da seguimiento a cada etapa contractual, desde la preformalización hasta su conclusión."
-        : activeModule === "relations"
-          ? "Cruza cada espacio con su expediente contractual para detectar vínculos, pendientes y condiciones económicas."
+        : activeModule === "finances"
+          ? "Analiza la renta contratada, la proyección anual, el costo por metro cuadrado y las condiciones de participación de la cartera vigente."
           : activeModule === "intelligence"
             ? "Concentra KPIs, reportes ejecutivos y alertas automáticas generadas con la información de los Excel cargados en SIGCO."
             : "Genera documentos administrativos estandarizados con la información procesada por SIGCO.";
+  const moduleTransitionKey = activeModule === "home"
+    ? `${activeModule}-${homeView}`
+    : activeModule === "contracts"
+      ? `${activeModule}-${contractView}`
+      : activeModule === "intelligence"
+        ? `${activeModule}-${intelligenceView}`
+        : activeModule;
 
   const openModule = (module: PrimaryModule) => {
+    if (module === "finances" && activeModule !== "finances") setFinanceLocationId(isGlobalContext ? "all" : locationId);
     setActiveModule(module);
     setExpandedId(null);
     setPage(1);
   };
 
   const handleScopeChange = (value: string) => {
+    if (activeModule === "finances") {
+      setFinanceLocationId(value);
+      return;
+    }
     if (value === "all") {
       setActiveModule("home");
       setHomeView("global");
@@ -461,15 +495,26 @@ export default function DashboardClient() {
     changeLocation(value);
     if (activeModule === "reports") {
       setActiveModule("locals");
-      setLocalView("summary");
+      setLocalView("directory");
     }
   };
+
+  const renderModuleLinks = (fixed = false) => (
+    <div className="module-links">
+      <button tabIndex={fixed ? 0 : isModuleMenuFixed ? -1 : undefined} className={activeModule === "home" ? "active" : ""} type="button" onClick={() => openModule("home")}><span>01</span>Inicio</button>
+      <button tabIndex={fixed ? 0 : isModuleMenuFixed ? -1 : undefined} className={activeModule === "locals" ? "active" : ""} type="button" onClick={() => openModule("locals")}><span>02</span>Locales</button>
+      <button tabIndex={fixed ? 0 : isModuleMenuFixed ? -1 : undefined} className={activeModule === "contracts" ? "active" : ""} type="button" onClick={() => openModule("contracts")}><span>03</span>Contratos</button>
+      <button tabIndex={fixed ? 0 : isModuleMenuFixed ? -1 : undefined} className={activeModule === "finances" ? "active" : ""} type="button" onClick={() => openModule("finances")}><span>04</span>Finanzas</button>
+      <button tabIndex={fixed ? 0 : isModuleMenuFixed ? -1 : undefined} className={activeModule === "reports" ? "active" : ""} type="button" onClick={() => openModule("reports")}><span>05</span>Reportes</button>
+      <button tabIndex={fixed ? 0 : isModuleMenuFixed ? -1 : undefined} className={activeModule === "intelligence" ? "active" : ""} type="button" onClick={() => openModule("intelligence")}><span>06</span>Inteligencia</button>
+    </div>
+  );
 
   return (
     <main>
       <header className="top-shell">
         <div className="top-nav">
-          <a className="brand" href="#inicio" aria-label="Inicio de SIGCO" onClick={() => openModule("home")}>
+          <div className="brand">
             <img
               className="brand-logo"
               src="/brand/aifa-logo-horizontal-white.png"
@@ -481,11 +526,11 @@ export default function DashboardClient() {
               <span>Grupo de Inteligencia y Análisis Comercial</span>
               <strong>SIGCO - Sistema Integral de Gestión Comercial y Operativa</strong>
             </span>
-          </a>
+          </div>
           <div className="top-context-actions">
             <label className="compact-location-picker">
-              <span>Zona de trabajo</span>
-              <select value={isGlobalContext ? "all" : locationId} onChange={(event) => handleScopeChange(event.target.value)} aria-label="Zona de trabajo">
+              <span>Zona comercial</span>
+              <select value={activeModule === "finances" ? financeLocationId : isGlobalContext ? "all" : locationId} onChange={(event) => handleScopeChange(event.target.value)} aria-label="Zona comercial">
                 <option value="all">Todas las zonas</option>
                 {locationOptions.map((location) => <option key={location.id} value={location.id}>{location.shortName}</option>)}
               </select>
@@ -504,41 +549,45 @@ export default function DashboardClient() {
           </div>
         </div>
 
-        <nav className="module-nav" aria-label="Módulos de SIGCO">
-          <div className="module-links">
-            <button className={activeModule === "home" ? "active" : ""} type="button" onClick={() => openModule("home")}><span>01</span>Inicio</button>
-            <button className={activeModule === "locals" ? "active" : ""} type="button" onClick={() => openModule("locals")}><span>02</span>Locales</button>
-            <button className={activeModule === "contracts" ? "active" : ""} type="button" onClick={() => openModule("contracts")}><span>03</span>Contratos</button>
-            <button className={activeModule === "relations" ? "active" : ""} type="button" onClick={() => openModule("relations")}><span>04</span>Relación</button>
-            <button className={activeModule === "reports" ? "active" : ""} type="button" onClick={() => openModule("reports")}><span>05</span>Reportes</button>
-            <button className={activeModule === "intelligence" ? "active" : ""} type="button" onClick={() => openModule("intelligence")}><span>06</span>Inteligencia</button>
-          </div>
-        </nav>
+        <div ref={moduleMenuSentinelRef} className="module-nav-sentinel">
+          <nav className="module-nav" aria-label="Módulos de SIGCO" aria-hidden={isModuleMenuFixed || undefined}>
+            {renderModuleLinks()}
+          </nav>
+        </div>
 
         <div className="hero" id="inicio">
           <div>
             <span className="section-kicker">Aeropuerto Internacional Felipe Ángeles</span>
-            <span className="module-context">{activeModule === "home" ? "Inicio" : activeModule === "locals" ? "Gestión de locales" : activeModule === "contracts" ? "Gestión contractual" : activeModule === "relations" ? "Cruce operativo" : activeModule === "intelligence" ? "Análisis rector" : "Salidas administrativas"}</span>
+            <span className="module-context">{activeModule === "home" ? "Inicio" : activeModule === "locals" ? "Gestión de locales" : activeModule === "contracts" ? "Gestión contractual" : activeModule === "finances" ? "Análisis financiero" : activeModule === "intelligence" ? "Análisis rector" : "Salidas administrativas"}</span>
             <h1>{heroTitle}</h1>
-            <p>{heroDescription}</p>
+            {activeModule !== "finances" && <p>{heroDescription}</p>}
           </div>
           <div className="hero-scope-card">
             <span>Contexto activo</span>
-            <strong>{isGlobalContext ? "7 zonas comerciales" : currentLocation.name}</strong>
+            <strong>{activeModule === "finances" ? financeScopeLabel : isGlobalContext ? "7 zonas comerciales" : currentLocation.name}</strong>
             <small>{contextRecordCount ? `${numberFormat.format(contextRecordCount)} registros en memoria` : "Carga la base para comenzar"}</small>
           </div>
         </div>
       </header>
 
+      {isModuleMenuFixed && (
+        <nav className="module-nav-fixed" aria-label="Módulos de SIGCO">
+          <div className="module-nav">{renderModuleLinks(true)}</div>
+        </nav>
+      )}
+
       <div className="dashboard-shell">
-        {activeModule !== "reports" && (
+        {activeModule !== "reports" && activeModule !== "finances" && (
           <nav className="context-tabs" aria-label="Vistas del módulo">
             <div>
-              <span>{activeModule === "home" ? "Panorama" : activeModule === "locals" ? "Locales" : activeModule === "contracts" ? "Contratos" : activeModule === "intelligence" ? "Inteligencia" : "Relación"}</span>
+              <span>{activeModule === "home" ? "Panorama" : activeModule === "locals" ? "Locales" : activeModule === "contracts" ? "Contratos" : "Inteligencia"}</span>
               {activeModule === "home" && <><button className={homeView === "global" ? "active" : ""} type="button" onClick={() => setHomeView("global")}>Resumen global</button><button className={homeView === "zone" ? "active" : ""} type="button" onClick={() => setHomeView("zone")}>Resumen de zona</button></>}
-              {activeModule === "locals" && <><button className={localView === "summary" ? "active" : ""} type="button" onClick={() => setLocalView("summary")}>Resumen</button><button className={localView === "directory" ? "active" : ""} type="button" onClick={() => setLocalView("directory")}>Directorio</button></>}
+              {activeModule === "locals" && (
+  <button className="active" type="button" onClick={() => setLocalView("directory")}>
+    Directorio
+  </button>
+)}
               {activeModule === "contracts" && <><button className={contractView === "summary" ? "active" : ""} type="button" onClick={() => setContractView("summary")}>Resumen</button><button className={contractView === "preformalization" ? "active" : ""} type="button" onClick={() => setContractView("preformalization")}>En preformalización</button><button className={contractView === "formalization" ? "active" : ""} type="button" onClick={() => setContractView("formalization")}>En formalización</button><button className={contractView === "formalized" ? "active" : ""} type="button" onClick={() => setContractView("formalized")}>Formalizados</button><button className={contractView === "cancelled" ? "active" : ""} type="button" onClick={() => setContractView("cancelled")}>Cancelados</button><button className={contractView === "expired" ? "active" : ""} type="button" onClick={() => setContractView("expired")}>Fenecidos</button><button className={contractView === "agreements" ? "active" : ""} type="button" onClick={() => setContractView("agreements")}>Convenios</button></>}
-              {activeModule === "relations" && <><button className={relationView === "table" ? "active" : ""} type="button" onClick={() => setRelationView("table")}>Tabla combinada</button><button className={relationView === "attention" ? "active" : ""} type="button" onClick={() => setRelationView("attention")}>Casos por atender</button></>}
               {activeModule === "intelligence" && <><button className={intelligenceView === "dashboard" ? "active" : ""} type="button" onClick={() => setIntelligenceView("dashboard")}>Tablero ejecutivo</button><button className={intelligenceView === "kpis" ? "active" : ""} type="button" onClick={() => setIntelligenceView("kpis")}>KPIs rectores</button><button className={intelligenceView === "reports" ? "active" : ""} type="button" onClick={() => setIntelligenceView("reports")}>Reportes ejecutivos</button><button className={intelligenceView === "alerts" ? "active" : ""} type="button" onClick={() => setIntelligenceView("alerts")}>Alertas</button></>}
             </div>
             <small>{isGlobalContext ? "Todas las zonas" : currentLocation.shortName}</small>
@@ -546,6 +595,7 @@ export default function DashboardClient() {
         )}
         {dataWarning && <div className="data-warning" role="status">{dataWarning}</div>}
         {loadingData && <div className="data-loading" role="status"><i /> Actualizando base…</div>}
+        <div key={moduleTransitionKey} className="module-content-transition">
         {activeModule === "home" && homeView === "global" ? (
           <GlobalSummary
             datasets={datasets}
@@ -564,13 +614,17 @@ export default function DashboardClient() {
             onUpload={() => setShowUpload(true)}
             onChangeView={setIntelligenceView}
           />
+        ) : activeModule === "finances" ? (
+          <FinanceCenter records={financeRecords} scopeLabel={financeScopeLabel} onUpload={() => setShowUpload(true)} />
         ) : activeModule === "reports" ? (
-          <ReportsCenter datasets={datasets} onUpload={() => setShowUpload(true)} />
+<ReportsCenter
+  datasets={datasets}
+  contractRecords={allContractRecords}
+  onUpload={() => setShowUpload(true)}
+/>
         ) : activeModule === "contracts" ? (
           allContractRecords.length ? <ContractCenter records={allContractRecords} locationName="Todas las zonas comerciales" mode={contractView} onOpenLocal={(nomenclature, sourceLocationId) => { if (sourceLocationId && datasets[sourceLocationId]) changeLocation(sourceLocationId); updateSearch(nomenclature); setActiveModule("locals"); setLocalView("directory"); }} /> : <EmptyLocationState onUpload={() => setShowUpload(true)} />
-        ) : activeModule === "relations" ? (
-          records.length ? <ContractRelations records={records} locationName={currentLocation.name} mode={relationView} /> : <EmptyLocationState onUpload={() => setShowUpload(true)} />
-        ) : activeModule === "home" || (activeModule === "locals" && localView === "summary") ? (
+        ) : activeModule === "home" ? (
           records.length ? (
             <SummaryDashboard
               records={records}
@@ -828,6 +882,7 @@ export default function DashboardClient() {
         </section>
           </>
         )}
+        </div>
       </div>
 
       <footer>
@@ -846,13 +901,13 @@ export default function DashboardClient() {
           open
           onClose={() => setShowUpload(false)}
           onSuccess={(result) => {
-            const nextCommercialAlerts = buildCommercialAlerts(result.datasets.etp ?? []);
             const nextLocationId = result.datasets[locationId]?.length
               ? locationId
               : Object.keys(result.datasets)[0] ?? locationId;
             setDatasets(result.datasets);
             setStandaloneContractRecords(result.contractRecords);
             setLocationId(nextLocationId);
+            setFinanceLocationId(nextLocationId);
             setRecords(result.datasets[nextLocationId] ?? []);
             setEtpCommercialCapacity(result.etpCommercialCapacity);
             setSourceFile(result.filename);
@@ -868,7 +923,7 @@ export default function DashboardClient() {
             setActiveModule("home");
             setHomeView("zone");
             setShowUpload(false);
-            setShowCommercialAlerts(nextCommercialAlerts.length > 0);
+            setShowCommercialAlerts(false);
           }}
         />
       )}
