@@ -99,7 +99,7 @@ test("preserves percentage-based chart labels", async () => {
   assert.match(summary, /<LocationIndicators locationId=\{locationId\} records=\{records\}/);
   assert.match(directoryAnalytics, /export function LocationIndicators/);
   assert.match(directoryAnalytics, /Indicadores de superficie ETP/);
-  assert.match(directoryAnalytics, /tenantMetrics\(records\)\.map/);
+  assert.match(directoryAnalytics, /tenantMetrics\(records, locationId === "etp"\)/);
   assert.match(globalSummary, /percentage|value \/ total/i);
   assert.match(globalSummary, /Estatus Comercial Global/);
   assert.match(globalSummary, /Distribución de Espacios Comerciales/);
@@ -108,7 +108,7 @@ test("preserves percentage-based chart labels", async () => {
   assert.match(globalSummary, /title="Arrendados"/);
   assert.match(globalSummary, /Todas las ubicaciones/);
   assert.match(globalSummary, /Datos representados/);
-  assert.doesNotMatch(directoryAnalytics, /pipeline/i);
+  assert.doesNotMatch(directoryAnalytics, /Avance del pipeline/);
 });
 
 test("shows the two interactive status charts in every location summary", async () => {
@@ -241,6 +241,24 @@ test("adds the institutional intelligence module without replacing existing func
   assert.match(styles, /Montserrat AIFA/);
 });
 
+test("adds concise executive analysis dialogs to the existing ETP indicators", async () => {
+  const directoryAnalytics = await readFile(new URL("../app/components/DirectoryAnalytics.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+
+  assert.match(directoryAnalytics, /Promedio general/);
+  assert.match(directoryAnalytics, /Mediana general/);
+  assert.match(directoryAnalytics, /Promedio ocupado/);
+  assert.match(directoryAnalytics, /Promedio disponible/);
+  assert.match(directoryAnalytics, /Rango de superficie/);
+  assert.match(directoryAnalytics, /Marcas operando/);
+  assert.match(directoryAnalytics, /Ratio multi-ubicación/);
+  assert.match(directoryAnalytics, /Concentración Top 3/);
+  assert.match(directoryAnalytics, /Las tres marcas con mayor superficie concentran/);
+  assert.match(directoryAnalytics, /metric-analysis-trigger/);
+  assert.match(directoryAnalytics, /role="dialog"/);
+  assert.match(styles, /\.metric-analysis-modal/);
+});
+
 test("adds the first-stage finance dashboard and removes Relation from primary navigation", async () => {
   const dashboard = await readFile(new URL("../app/DashboardClient.tsx", import.meta.url), "utf8");
   const finance = await readFile(new URL("../app/components/FinanceCenter.tsx", import.meta.url), "utf8");
@@ -259,8 +277,33 @@ test("adds the first-stage finance dashboard and removes Relation from primary n
   assert.match(finance, /Locales con participación/);
   assert.match(finance, /Renta mensual por zona/);
   assert.match(finance, /Distribución de renta mensual/);
+  assert.match(finance, /Concentración de renta mensual/);
+  assert.match(finance, /Renta expuesta por vigencia/);
+  assert.match(finance, /FINANCE_PAGE_SIZE = 10/);
+  assert.match(finance, /Finanzas de los contratos/);
+  assert.match(finance, /Página \{effectivePage\} de \{totalPages\}/);
   assert.match(finance, /Participación e histórico mensual/);
   assert.match(finance, /Datos de Cobranza pendientes/);
+});
+
+test("adds the institutional consultation module for the commercial direction", async () => {
+  const dashboard = await readFile(new URL("../app/DashboardClient.tsx", import.meta.url), "utf8");
+  const institutional = await readFile(new URL("../app/components/InstitutionalCenter.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+
+  assert.doesNotMatch(dashboard, /<span>\d+<\/span>Institucional/);
+  assert.match(dashboard, /institutional-header-button/);
+  assert.match(dashboard, /<InstitutionalCenter open=\{showInstitutional\}/);
+  assert.match(institutional, /Dirección Comercial y de Servicios/);
+  assert.match(institutional, /Misión/);
+  assert.match(institutional, /Visión/);
+  assert.match(institutional, /Objetivo/);
+  assert.match(institutional, /Para el año 2036/);
+  assert.match(institutional, /Maximizar el aprovechamiento del Aeropuerto Internacional Felipe Ángeles/);
+  assert.doesNotMatch(institutional, /Sujeto a validación institucional/);
+  assert.match(institutional, /role="dialog"/);
+  assert.match(styles, /\.institutional-modal-backdrop/);
+  assert.doesNotMatch(styles, /\.institutional-rail/);
 });
 
 test("uses subtle transitions for navigation and Excel processing with reduced-motion support", async () => {

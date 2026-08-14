@@ -18,6 +18,7 @@ const numberFormat = new Intl.NumberFormat("es-MX", { maximumFractionDigits: 1 }
 const percentFormat = new Intl.NumberFormat("es-MX", { style: "percent", maximumFractionDigits: 1 });
 
 type ParticipationFilter = "all" | "with" | "without";
+const FINANCE_PAGE_SIZE = 10;
 
 type FinancialContract = {
   key: string;
@@ -148,6 +149,8 @@ export default function FinanceCenter({ records, scopeLabel, onUpload }: { recor
   const [search, setSearch] = useState("");
   const [participation, setParticipation] = useState<ParticipationFilter>("all");
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [referenceTime] = useState(Date.now);
 
   const filteredContracts = useMemo(() => {
     const query = normalized(search.trim());
@@ -159,6 +162,10 @@ export default function FinanceCenter({ records, scopeLabel, onUpload }: { recor
       return matchesSearch && matchesParticipation;
     });
   }, [contracts, participation, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredContracts.length / FINANCE_PAGE_SIZE));
+  const effectivePage = Math.min(page, totalPages);
+  const pageContracts = filteredContracts.slice((effectivePage - 1) * FINANCE_PAGE_SIZE, effectivePage * FINANCE_PAGE_SIZE);
 
   const metrics = useMemo(() => {
     const selectedRecords = filteredContracts.flatMap((contract) => contract.locals);
@@ -217,6 +224,55 @@ export default function FinanceCenter({ records, scopeLabel, onUpload }: { recor
   }));
   const maxRangeCount = Math.max(...rentRanges.map((range) => range.count), 1);
 
+  const concentration = useMemo(() => {
+    const contractRents = filteredContracts
+      .map((contract) => ({
+        label: contract.brand,
+        value: contract.locals.filter((record) => isOperating(record)).reduce((total, record) => total + (record.monthlyRent ?? 0), 0),
+      }))
+      .filter((item) => item.value > 0)
+      .sort((a, b) => b.value - a.value);
+    const total = contractRents.reduce((sum, item) => sum + item.value, 0);
+    const topFive = contractRents.slice(0, 5).reduce((sum, item) => sum + item.value, 0);
+    return {
+      total,
+      topFive,
+      remaining: Math.max(0, total - topFive),
+      percentage: total ? topFive / total : 0,
+      leaders: contractRents.slice(0, 3),
+    };
+  }, [filteredContracts]);
+
+  const renewalExposure = useMemo(() => {
+    const buckets = [
+      { label: "Vencidos", minimum: Number.NEGATIVE_INFINITY, maximum: 0, value: 0, count: 0 },
+      { label: "Próximos 90 días", minimum: 0, maximum: 90, value: 0, count: 0 },
+      { label: "91–180 días", minimum: 90, maximum: 180, value: 0, count: 0 },
+      { label: "181–365 días", minimum: 180, maximum: 365, value: 0, count: 0 },
+      { label: "Más de un año", minimum: 365, maximum: Number.POSITIVE_INFINITY, value: 0, count: 0 },
+    ];
+    let withoutDate = 0;
+    filteredContracts.forEach((contract) => {
+      const operatingRent = contract.locals.filter((record) => isOperating(record)).reduce((total, record) => total + (record.monthlyRent ?? 0), 0);
+      if (!operatingRent) return;
+      const renewalTimes = contract.locals
+        .map((record) => record.renewalDate ? new Date(`${record.renewalDate}T23:59:59`).getTime() : Number.NaN)
+        .filter((time) => !Number.isNaN(time));
+      if (!renewalTimes.length) {
+        withoutDate += 1;
+        return;
+      }
+      const remainingDays = (Math.min(...renewalTimes) - referenceTime) / 86_400_000;
+      const bucket = buckets.find((item) => remainingDays > item.minimum && remainingDays <= item.maximum);
+      if (bucket) {
+        bucket.value += operatingRent;
+        bucket.count += 1;
+      }
+    });
+    return { buckets, withoutDate };
+  }, [filteredContracts, referenceTime]);
+  const maxRenewalExposure = Math.max(...renewalExposure.buckets.map((bucket) => bucket.value), 1);
+
   if (!contracts.length) {
     return (
       <section className="finance-center finance-empty-state" aria-label="Finanzas">
@@ -237,8 +293,8 @@ export default function FinanceCenter({ records, scopeLabel, onUpload }: { recor
           <small className="finance-scope-name">{scopeLabel}</small>
         </div>
         <div className="finance-filters">
-          <label><span>Buscar contrato o marca</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Ej. contrato, local o marca" /></label>
-          <label><span>Participación</span><select value={participation} onChange={(event) => setParticipation(event.target.value as ParticipationFilter)}><option value="all">Todos</option><option value="with">Con participación</option><option value="without">Sin participación</option></select></label>
+          <label><span>Buscar contrato o marca</span><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); setExpandedKey(null); }} placeholder="Ej. contrato, local o marca" /></label>
+          <label><span>Participación</span><select value={participation} onChange={(event) => { setParticipation(event.target.value as ParticipationFilter); setPage(1); setExpandedKey(null); }}><option value="all">Todos</option><option value="with">Con participación</option><option value="without">Sin participación</option></select></label>
         </div>
       </div>
 
@@ -261,6 +317,30 @@ export default function FinanceCenter({ records, scopeLabel, onUpload }: { recor
           <div className="finance-card-heading"><div><span>Composición de cartera</span><h3>Distribución de renta mensual</h3></div><small>Contratos con locales operando</small></div>
           <div className="finance-range-chart">{rentRanges.map((range) => <div key={range.label}><strong>{range.count}</strong><i><em style={{ height: `${Math.max((range.count / maxRangeCount) * 100, range.count ? 8 : 0)}%` }} /></i><span>{range.label}</span></div>)}</div>
         </article>
+        <article className="finance-card finance-chart-card finance-concentration-card">
+          <div className="finance-card-heading"><div><span>Riesgo de concentración</span><h3>Concentración de renta mensual</h3></div><small>Top 5 vs. resto</small></div>
+          {concentration.total ? <div className="finance-concentration-content">
+            <div className="finance-donut" style={{ "--concentration": `${concentration.percentage * 360}deg` } as React.CSSProperties}>
+              <div><strong>{percentFormat.format(concentration.percentage)}</strong><span>de la renta</span></div>
+            </div>
+            <div className="finance-concentration-detail">
+              <div><i className="top-five" /><span>5 contratos principales</span><strong>{compactCurrencyFormat.format(concentration.topFive)}</strong></div>
+              <div><i className="remaining" /><span>Resto de la cartera</span><strong>{compactCurrencyFormat.format(concentration.remaining)}</strong></div>
+              <ol>{concentration.leaders.map((item) => <li key={item.label}><span>{item.label}</span><strong>{compactCurrencyFormat.format(item.value)}</strong></li>)}</ol>
+            </div>
+          </div> : <p className="finance-card-empty">No hay rentas en funcionamiento para calcular la concentración.</p>}
+        </article>
+        <article className="finance-card finance-chart-card">
+          <div className="finance-card-heading"><div><span>Planeación de renovaciones</span><h3>Renta expuesta por vigencia</h3></div><small>MXN mensuales</small></div>
+          {renewalExposure.buckets.some((bucket) => bucket.value > 0) ? <div className="finance-renewal-chart">
+            {renewalExposure.buckets.map((bucket) => <div key={bucket.label}>
+              <span>{bucket.label}<small>{bucket.count} {bucket.count === 1 ? "contrato" : "contratos"}</small></span>
+              <i><em style={{ width: `${Math.max((bucket.value / maxRenewalExposure) * 100, bucket.value ? 3 : 0)}%` }} /></i>
+              <strong>{bucket.value ? compactCurrencyFormat.format(bucket.value) : "—"}</strong>
+            </div>)}
+            {renewalExposure.withoutDate > 0 && <p>{renewalExposure.withoutDate} contratos con renta no tienen fecha de renovación y no se incluyen en las barras.</p>}
+          </div> : <p className="finance-card-empty">No hay fechas de renovación válidas para esta selección.</p>}
+        </article>
       </div>
 
       <article className="finance-future-card">
@@ -270,8 +350,8 @@ export default function FinanceCenter({ records, scopeLabel, onUpload }: { recor
       </article>
 
       <article className="finance-table-card">
-        <div className="finance-table-heading"><div><span className="section-kicker">Detalle financiero</span><h3>Contratos financieros</h3><p>{numberFormat.format(filteredContracts.length)} contratos en la selección actual.</p></div></div>
-        {filteredContracts.length ? <div className="finance-table-wrap"><table className="finance-table"><thead><tr><th>Contrato / arrendatario</th><th>Zona</th><th>Renta mensual</th><th>Costo/m²</th><th>Participación</th><th>Proyección a 12 meses</th><th aria-label="Detalle" /></tr></thead><tbody>{filteredContracts.map((contract) => {
+        <div className="finance-table-heading"><div><span className="section-kicker">Detalle financiero</span><h3>Finanzas de los contratos</h3><p>Mostrando {filteredContracts.length ? (effectivePage - 1) * FINANCE_PAGE_SIZE + 1 : 0}–{Math.min(effectivePage * FINANCE_PAGE_SIZE, filteredContracts.length)} de {numberFormat.format(filteredContracts.length)} contratos.</p></div></div>
+        {filteredContracts.length ? <><div className="finance-table-wrap"><table className="finance-table"><thead><tr><th>Contrato / arrendatario</th><th>Zona</th><th>Renta mensual</th><th>Costo/m²</th><th>Participación</th><th>Proyección a 12 meses</th><th aria-label="Detalle" /></tr></thead><tbody>{pageContracts.map((contract) => {
           const expanded = expandedKey === contract.key;
           return [
             <tr key={contract.key} className={expanded ? "finance-row-expanded" : ""}>
@@ -285,7 +365,7 @@ export default function FinanceCenter({ records, scopeLabel, onUpload }: { recor
             </tr>,
             expanded ? <tr key={`${contract.key}-detail`} className="finance-detail-row"><td colSpan={7}><div className="finance-contract-detail"><div><span>Superficie vinculada</span><strong>{numberFormat.format(contract.area)} m²</strong></div><div><span>Proyección próximos 12 meses</span><strong>{contract.annualProjection > 0 ? currencyFormat.format(contract.annualProjection) : "Sin proyección"}</strong></div><div><span>Condición de participación</span><strong>{contract.participationRate === null ? "No aplica / sin dato" : percentFormat.format(contract.participationRate)}</strong><small>{contract.participationNotes}</small></div><div className="finance-linked-locals"><span>Espacios incluidos</span><p>{contract.locals.map((local) => local.nomenclatura || "Sin nomenclatura").join(" · ")}</p></div></div></td></tr> : null,
           ];
-        })}</tbody></table></div> : <p className="finance-no-results">No hay contratos que coincidan con los filtros seleccionados.</p>}
+        })}</tbody></table></div><div className="pagination finance-pagination"><span>Página {effectivePage} de {totalPages}</span><div><button type="button" disabled={effectivePage === 1} onClick={() => { setPage(effectivePage - 1); setExpandedKey(null); }}>Anterior</button><button type="button" disabled={effectivePage === totalPages} onClick={() => { setPage(effectivePage + 1); setExpandedKey(null); }}>Siguiente</button></div></div></> : <p className="finance-no-results">No hay contratos que coincidan con los filtros seleccionados.</p>}
       </article>
     </section>
   );

@@ -7,6 +7,7 @@ import ContractCenter from "./components/ContractCenter";
 import DirectoryAnalytics from "./components/DirectoryAnalytics";
 import FinanceCenter from "./components/FinanceCenter";
 import GlobalSummary from "./components/GlobalSummary";
+import InstitutionalCenter from "./components/InstitutionalCenter";
 import IntelligenceCenter, { type IntelligenceView } from "./components/IntelligenceCenter";
 import ReportsCenter from "./components/ReportsCenter";
 import SummaryDashboard from "./components/SummaryDashboard";
@@ -212,6 +213,7 @@ export default function DashboardClient() {
   const [dataWarning, setDataWarning] = useState("");
   const [showUpload, setShowUpload] = useState(false);
   const [showCommercialAlerts, setShowCommercialAlerts] = useState(false);
+  const [showInstitutional, setShowInstitutional] = useState(false);
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState(initialFilters);
   const [minArea, setMinArea] = useState("");
@@ -535,6 +537,10 @@ export default function DashboardClient() {
                 {locationOptions.map((location) => <option key={location.id} value={location.id}>{location.shortName}</option>)}
               </select>
             </label>
+            <button type="button" className="institutional-header-button" onClick={() => setShowInstitutional(true)} aria-haspopup="dialog" aria-expanded={showInstitutional}>
+              <span className="institutional-header-mark" aria-hidden="true"><i /><i /><i /></span>
+              Institucional
+            </button>
             <button
               type="button"
               className={`notification-button${commercialAlerts.length ? " has-alerts" : ""}`}
@@ -932,6 +938,7 @@ export default function DashboardClient() {
         alerts={commercialAlerts}
         onClose={() => setShowCommercialAlerts(false)}
       />
+      <InstitutionalCenter open={showInstitutional} onClose={() => setShowInstitutional(false)} />
     </main>
   );
 }
