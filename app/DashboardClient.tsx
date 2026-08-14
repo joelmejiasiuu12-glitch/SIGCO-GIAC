@@ -11,7 +11,7 @@ import InstitutionalCenter from "./components/InstitutionalCenter";
 import IntelligenceCenter, { type IntelligenceView } from "./components/IntelligenceCenter";
 import ReportsCenter from "./components/ReportsCenter";
 import SummaryDashboard from "./components/SummaryDashboard";
-import { locationOptions, type LocalRecord } from "./types";
+import { locationOptions, type EtpCommercialCapacityData, type LocalRecord, type PassengerTrafficRecord } from "./types";
 
 type FilterKey =
   | "lado"
@@ -206,7 +206,8 @@ export default function DashboardClient() {
   const [datasets, setDatasets] = useState<Dataset>(emptyDatasets);
   const [standaloneContractRecords, setStandaloneContractRecords] = useState<LocalRecord[]>([]);
   const [records, setRecords] = useState<LocalRecord[]>([]);
-  const [etpCommercialCapacity, setEtpCommercialCapacity] = useState<number | null>(null);
+  const [etpCommercialCapacity, setEtpCommercialCapacity] = useState<EtpCommercialCapacityData | null>(null);
+  const [passengerTraffic, setPassengerTraffic] = useState<PassengerTrafficRecord[]>([]);
   const [sourceFile, setSourceFile] = useState("Sin archivo cargado");
   const [sourceUpdatedAt, setSourceUpdatedAt] = useState<string | null>(null);
   const [loadingData, setLoadingData] = useState(false);
@@ -638,7 +639,9 @@ export default function DashboardClient() {
               locationName={currentLocation.name}
               recordLabel={currentLocation.recordLabel}
               etpCommercialCapacity={etpCommercialCapacity}
+              passengerTraffic={passengerTraffic}
               onOpenDirectory={() => { setActiveModule("locals"); setLocalView("directory"); }}
+              onOpenBrand={(brand) => { clearFilters(); updateSearch(brand); setActiveModule("locals"); setLocalView("directory"); }}
             />
           ) : (
             <EmptyLocationState onUpload={() => setShowUpload(true)} />
@@ -916,6 +919,7 @@ export default function DashboardClient() {
             setFinanceLocationId(nextLocationId);
             setRecords(result.datasets[nextLocationId] ?? []);
             setEtpCommercialCapacity(result.etpCommercialCapacity);
+            setPassengerTraffic(result.passengerTraffic);
             setSourceFile(result.filename);
             setSourceUpdatedAt(new Date().toISOString());
             setDataWarning("");

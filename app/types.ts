@@ -6,6 +6,22 @@ export type ContractStage =
   | "expired"
   | "agreements";
 
+export type EtpCommercialCapacityData = {
+  terminalPassengerCapacity: number;
+  commercialAreaFactor: number;
+  recommendedCommercialArea: number;
+  leasedCommercialArea: number;
+  commercialPassengerCapacity: number;
+};
+
+export type PassengerTrafficRecord = {
+  year: number;
+  month: number;
+  monthName: string;
+  passengers: number;
+  status: "real" | "partial" | "projection";
+};
+
 export type LocalRecord = {
   id: number;
   nomenclatura: string;

@@ -124,21 +124,68 @@ test("shows the two interactive status charts in every location summary", async 
   assert.doesNotMatch(summary, /locationId === "etp" \|\| locationId === "parque-santa-lucia"/);
 });
 
-test("reads and shows the ETP commercial-attention capacity from CAPACIDAD D2", async () => {
+test("reads and reflects the ETP commercial-attention model from CAPACIDAD", async () => {
   const upload = await readFile(new URL("../app/components/DataUploadModal.tsx", import.meta.url), "utf8");
   const dashboard = await readFile(new URL("../app/DashboardClient.tsx", import.meta.url), "utf8");
   const summary = await readFile(new URL("../app/components/SummaryDashboard.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 
   assert.match(upload, /normalized\("Capacidad"\)/);
   assert.match(upload, /readEtpCommercialCapacity/);
-  assert.match(upload, /toLocaleUpperCase\("es-MX"\) === "D2"/);
+  assert.match(upload, /readNumericCell\("A2"\)/);
+  assert.match(upload, /readNumericCell\("B2"\)/);
+  assert.match(upload, /readNumericCell\("C2"\)/);
+  assert.match(upload, /readNumericCell\("D2"\)/);
+  assert.match(upload, /readNumericCell\("A5"\)/);
   assert.match(upload, /getElementsByTagName\("v"\)/);
   assert.match(upload, /DecompressionStream\("deflate-raw"\)/);
+  assert.match(upload, /terminalPassengerCapacity \* commercialAreaFactor/);
+  assert.match(upload, /leasedCommercialArea \/ recommendedCommercialArea/);
   assert.match(upload, /etpCommercialCapacity/);
   assert.match(dashboard, /etpCommercialCapacity=\{etpCommercialCapacity\}/);
   assert.match(summary, /locationId === "etp"/);
   assert.match(summary, /Capacidad de Atención Comercial/);
-  assert.match(summary, /Hoja CAPACIDAD · celda D2/);
+  assert.match(summary, /capacityAnalysisOpen/);
+  assert.match(summary, /commercial-capacity-heading/);
+  assert.match(summary, /capacityAnalysisOpen && <CommercialCapacityAnalysis/);
+  assert.match(summary, /Hoja CAPACIDAD · A2, C2 y A5 · equivalente a D2/);
+  assert.match(summary, /<CommercialCapacityAnalysis capacity=\{etpCommercialCapacity\} available=\{available\} passengerTraffic=\{passengerTraffic\}/);
+  assert.match(summary, /projectedPassengers \/ commercialPassengerCapacity/);
+  assert.match(summary, /commercialPassengerCapacity - projectedPassengers/);
+  assert.match(summary, /Cobertura de superficie/);
+  assert.match(summary, /capacity\.leasedCommercialArea \/ capacity\.recommendedCommercialArea/);
+  assert.match(summary, /Capacidad de diseño ETP/);
+  assert.match(summary, /Coeficiente comercial/);
+  assert.match(summary, /Superficie recomendada/);
+  assert.match(summary, /Superficie arrendada/);
+  assert.match(summary, /Utilización proyectada \{currentYear/);
+  assert.match(summary, /Holgura de capacidad/);
+  assert.match(summary, /Crecimiento de pasajeros/);
+  assert.match(summary, /Tráfico frente a capacidad comercial actual/);
+  assert.match(summary, /no sustituye una evaluación operativa por hora pico/);
+  assert.doesNotMatch(summary, /14_645_603|14645603/);
+  assert.match(styles, /\.commercial-capacity-kpis/);
+  assert.match(styles, /\.commercial-capacity-foundation/);
+  assert.match(styles, /\.commercial-capacity-history/);
+  assert.match(styles, /\.commercial-capacity-heading/);
+});
+
+test("reads monthly passenger traffic and excludes partial months from annualization", async () => {
+  const upload = await readFile(new URL("../app/components/DataUploadModal.tsx", import.meta.url), "utf8");
+  const dashboard = await readFile(new URL("../app/DashboardClient.tsx", import.meta.url), "utf8");
+  const summary = await readFile(new URL("../app/components/SummaryDashboard.tsx", import.meta.url), "utf8");
+
+  assert.match(upload, /normalized\("Pasajeros"\)/);
+  assert.match(upload, /\["ano", "mes", "pasajeros", "estado"\]/);
+  assert.match(upload, /rawStatus === "parcial"/);
+  assert.match(upload, /passengerTraffic: passengerResult\.records/);
+  assert.match(dashboard, /passengerTraffic=\{passengerTraffic\}/);
+  assert.match(dashboard, /setPassengerTraffic\(result\.passengerTraffic\)/);
+  assert.match(summary, /record\.status === "real"/);
+  assert.match(summary, /record\.status === "partial"/);
+  assert.match(summary, /currentYearToDate \/ currentRealRecords\.length/);
+  assert.match(summary, /Se excluye/);
+  assert.doesNotMatch(summary, /912_415|2_631_261|6_318_454|7_058_219|4_324_240/);
 });
 
 test("creates a reusable ETP notification center from the two contract dates", async () => {
@@ -241,8 +288,10 @@ test("adds the institutional intelligence module without replacing existing func
   assert.match(styles, /Montserrat AIFA/);
 });
 
-test("adds concise executive analysis dialogs to the existing ETP indicators", async () => {
+test("adds concise metric-backed information cards to the existing ETP indicators", async () => {
   const directoryAnalytics = await readFile(new URL("../app/components/DirectoryAnalytics.tsx", import.meta.url), "utf8");
+  const summaryDashboard = await readFile(new URL("../app/components/SummaryDashboard.tsx", import.meta.url), "utf8");
+  const dashboard = await readFile(new URL("../app/DashboardClient.tsx", import.meta.url), "utf8");
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 
   assert.match(directoryAnalytics, /Promedio general/);
@@ -253,10 +302,84 @@ test("adds concise executive analysis dialogs to the existing ETP indicators", a
   assert.match(directoryAnalytics, /Marcas operando/);
   assert.match(directoryAnalytics, /Ratio multi-ubicación/);
   assert.match(directoryAnalytics, /Concentración Top 3/);
-  assert.match(directoryAnalytics, /Las tres marcas con mayor superficie concentran/);
+  assert.match(directoryAnalytics, /Las tres marcas con mayor superficie ocupan/);
   assert.match(directoryAnalytics, /metric-analysis-trigger/);
+  assert.match(directoryAnalytics, /Por qué importa/);
+  assert.match(directoryAnalytics, /topThreeBrands\.map/);
+  assert.match(directoryAnalytics, /Marcas principales y locales ocupados/);
+  assert.match(directoryAnalytics, /Ver locales →/);
+  assert.match(summaryDashboard, /onOpenBrand=\{onOpenBrand\}/);
+  assert.match(dashboard, /onOpenBrand=\{\(brand\) => \{ clearFilters\(\); updateSearch\(brand\); setActiveModule\("locals"\)/);
   assert.match(directoryAnalytics, /role="dialog"/);
-  assert.match(styles, /\.metric-analysis-modal/);
+  assert.match(styles, /\.metric-analysis-popover/);
+  assert.match(styles, /\.metric-analysis-links/);
+  assert.doesNotMatch(styles, /\.metric-analysis-backdrop/);
+  assert.doesNotMatch(styles, /\.metric-analysis-modal/);
+});
+
+test("adds dynamic vacancy and module placement analysis to the executive summary", async () => {
+  const summaryDashboard = await readFile(new URL("../app/components/SummaryDashboard.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+
+  assert.match(summaryDashboard, /buildVacancyInsight/);
+  assert.match(summaryDashboard, /buildModuleInsight/);
+  assert.match(summaryDashboard, /Diagnóstico de colocación/);
+  assert.match(summaryDashboard, /Prioridad de comercialización/);
+  assert.match(summaryDashboard, /Análisis integral por módulo/);
+  assert.match(summaryDashboard, /Módulos estrella/);
+  assert.match(summaryDashboard, /Potencial de optimización/);
+  assert.match(summaryDashboard, /Rentables con riesgo/);
+  assert.match(summaryDashboard, /Atención prioritaria/);
+  assert.match(summaryDashboard, /Los cuadrantes se dividen con las medianas del inventario comparable/);
+  assert.match(summaryDashboard, /record\.estatus === "EN FUNCIONAMIENTO" && record\.monthlyRent !== null/);
+  assert.match(summaryDashboard, /financialCoverage/);
+  assert.match(summaryDashboard, /medianRentPerM2/);
+  assert.match(summaryDashboard, /medianOccupancy/);
+  assert.match(summaryDashboard, /tasa interna de vacancia/);
+  assert.match(summaryDashboard, /Tamaño mediano vacante/);
+  assert.match(summaryDashboard, /Zona de concentración/);
+  assert.match(summaryDashboard, /Mayor oportunidad/);
+  assert.match(summaryDashboard, /Actualizado con los filtros activos/);
+  assert.match(summaryDashboard, /SpacePreviewPanel/);
+  assert.match(summaryDashboard, /vacancyAnalysisOpen && vacancyInsight/);
+  assert.match(summaryDashboard, /Consultar espacios →/);
+  assert.match(summaryDashboard, /Consultar espacios vacantes del módulo/);
+  assert.match(summaryDashboard, /Superficie/);
+  assert.match(summaryDashboard, /Módulo/);
+  assert.match(styles, /\.inventory-analysis/);
+  assert.match(styles, /\.module-priority-list/);
+  assert.match(styles, /\.module-bcg-wrap/);
+  assert.match(styles, /\.module-bcg-matrix/);
+  assert.match(styles, /\.module-bcg-items/);
+  assert.match(styles, /\.module-analysis-method/);
+  assert.match(styles, /\.vacancy-facts/);
+  assert.match(styles, /\.space-preview-panel/);
+  assert.match(styles, /\.space-preview-list/);
+});
+
+test("adds inventory-backed analysis to the four commercial distribution charts", async () => {
+  const summaryDashboard = await readFile(new URL("../app/components/SummaryDashboard.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+
+  assert.match(summaryDashboard, /buildPortfolioInsight/);
+  assert.match(summaryDashboard, /PortfolioAnalysisCard/);
+  assert.match(summaryDashboard, /AnalysisToggle/);
+  assert.match(summaryDashboard, /analysisOpen && insight/);
+  assert.match(summaryDashboard, /analysisOpen && analysis/);
+  assert.match(summaryDashboard, /Concentración Top 2/);
+  assert.match(summaryDashboard, /Ocupación del giro/);
+  assert.match(summaryDashboard, /Superficie vacante/);
+  assert.match(summaryDashboard, /Concentración vertical/);
+  assert.match(summaryDashboard, /Giros identificados/);
+  assert.match(summaryDashboard, /sin atribuir todavía afluencia de pasajeros/);
+  assert.match(summaryDashboard, /field: "giroOperativo", kind: "giro"/);
+  assert.match(summaryDashboard, /field: "lado", kind: "zona"/);
+  assert.match(summaryDashboard, /field: "nivel", kind: "nivel"/);
+  assert.match(summaryDashboard, /field: "area", kind: "area"/);
+  assert.match(styles, /\.portfolio-chart-analysis/);
+  assert.match(styles, /\.portfolio-analysis-metrics/);
+  assert.match(styles, /\.portfolio-selectable-legend/);
+  assert.match(styles, /\.chart-analysis-toggle/);
 });
 
 test("adds the first-stage finance dashboard and removes Relation from primary navigation", async () => {

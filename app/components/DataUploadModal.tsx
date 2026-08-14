@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import readXlsxFile, { type CellValue, type SheetData } from "read-excel-file/browser";
-import { locationOptions, type ContractStage, type LocalRecord } from "@/app/types";
+import { locationOptions, type ContractStage, type EtpCommercialCapacityData, type LocalRecord, type PassengerTrafficRecord } from "@/app/types";
 import { isCommercialServicesEtpRecord } from "@/app/data/recordVisibility";
 
 export type LocalWorkbookResult = {
@@ -10,7 +10,8 @@ export type LocalWorkbookResult = {
   datasets: Record<string, LocalRecord[]>;
   contractRecords: LocalRecord[];
   totalRecords: number;
-  etpCommercialCapacity: number | null;
+  etpCommercialCapacity: EtpCommercialCapacityData | null;
+  passengerTraffic: PassengerTrafficRecord[];
 };
 
 type ParsedField = keyof LocalRecord | "metrajeConstruido" | "daysRemaining" | "sourceZone";
@@ -27,8 +28,11 @@ type ParsedLocation = {
 type ParsedWorkbook = {
   locations: ParsedLocation[];
   contractSheets: ParsedLocation[];
-  etpCommercialCapacity: number | null;
+  etpCommercialCapacity: EtpCommercialCapacityData | null;
   capacityMessage: string;
+  passengerTraffic: PassengerTrafficRecord[];
+  passengerErrors: string[];
+  passengerMessage: string;
 };
 
 const sheetDefinitions = [
@@ -127,7 +131,7 @@ function optionalText(value: CellValue | null) {
 function parseArea(value: CellValue | null) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   const text = cellText(value);
-  if (!text || /unidad/i.test(text)) return null;
+  if (!text || /^#/.test(text) || /unidad/i.test(text)) return null;
   const normalizedNumber = text.includes(",") && !text.includes(".")
     ? text.replace(",", ".")
     : text.replaceAll(",", "");
@@ -252,6 +256,30 @@ function resolveWorkbookTarget(target: string) {
   return resolved.join("/");
 }
 
+function buildEtpCommercialCapacity(readNumericCell: (reference: string) => number | null) {
+  const terminalPassengerCapacity = readNumericCell("A2");
+  const commercialAreaFactor = readNumericCell("A5");
+  const leasedCommercialArea = readNumericCell("C2");
+  if (
+    terminalPassengerCapacity === null || terminalPassengerCapacity <= 0
+    || commercialAreaFactor === null || commercialAreaFactor <= 0
+    || leasedCommercialArea === null || leasedCommercialArea < 0
+  ) return null;
+
+  const recommendedCommercialArea = readNumericCell("B2")
+    ?? terminalPassengerCapacity * commercialAreaFactor;
+  const commercialPassengerCapacity = readNumericCell("D2")
+    ?? (leasedCommercialArea / recommendedCommercialArea) * terminalPassengerCapacity;
+  if (recommendedCommercialArea <= 0 || !Number.isFinite(commercialPassengerCapacity) || commercialPassengerCapacity < 0) return null;
+  return {
+    terminalPassengerCapacity,
+    commercialAreaFactor,
+    recommendedCommercialArea,
+    leasedCommercialArea,
+    commercialPassengerCapacity,
+  } satisfies EtpCommercialCapacityData;
+}
+
 async function readEtpCommercialCapacity(file: File) {
   const contents = await file.arrayBuffer();
   const workbook = new DOMParser().parseFromString(await readZipText(contents, "xl/workbook.xml"), "application/xml");
@@ -277,11 +305,94 @@ async function readEtpCommercialCapacity(file: File) {
     await readZipText(contents, resolveWorkbookTarget(target)),
     "application/xml",
   );
-  const cellD2 = [...worksheet.getElementsByTagName("c")].find(
-    (cell) => cell.getAttribute("r")?.toLocaleUpperCase("es-MX") === "D2",
-  );
-  const cachedValue = cellD2?.getElementsByTagName("v")[0]?.textContent ?? null;
-  return parseArea(cachedValue);
+  const cells = [...worksheet.getElementsByTagName("c")];
+  const readNumericCell = (reference: string) => {
+    const cell = cells.find(
+      (candidate) => candidate.getAttribute("r")?.toLocaleUpperCase("es-MX") === reference,
+    );
+    return parseArea(cell?.getElementsByTagName("v")[0]?.textContent ?? null);
+  };
+  return buildEtpCommercialCapacity(readNumericCell);
+}
+
+function readEtpCommercialCapacityFromSheet(capacitySheet: SheetData | undefined) {
+  if (!capacitySheet) return null;
+  const references: Record<string, [number, number]> = {
+    A2: [1, 0], B2: [1, 1], C2: [1, 2], D2: [1, 3], A5: [4, 0],
+  };
+  return buildEtpCommercialCapacity((reference) => {
+    const position = references[reference];
+    return position ? parseArea(capacitySheet[position[0]]?.[position[1]] ?? null) : null;
+  });
+}
+
+const passengerMonths: Record<string, number> = {
+  enero: 1,
+  febrero: 2,
+  marzo: 3,
+  abril: 4,
+  mayo: 5,
+  junio: 6,
+  julio: 7,
+  agosto: 8,
+  septiembre: 9,
+  octubre: 10,
+  noviembre: 11,
+  diciembre: 12,
+};
+
+function parsePassengerTraffic(rows: SheetData | undefined) {
+  if (!rows) return { records: [] as PassengerTrafficRecord[], errors: [] as string[] };
+  const headerIndex = rows.slice(0, 10).findIndex((row) => {
+    const headers = row.map(normalized);
+    return ["ano", "mes", "pasajeros", "estado"].every((header) => headers.includes(header));
+  });
+  if (headerIndex < 0) {
+    return {
+      records: [] as PassengerTrafficRecord[],
+      errors: ["Pasajeros: no se encontraron las columnas Año, Mes, Pasajeros y Estado."],
+    };
+  }
+
+  const headers = rows[headerIndex].map(normalized);
+  const yearColumn = headers.indexOf("ano");
+  const monthColumn = headers.indexOf("mes");
+  const passengersColumn = headers.indexOf("pasajeros");
+  const statusColumn = headers.indexOf("estado");
+  const records: PassengerTrafficRecord[] = [];
+  const errors: string[] = [];
+  const seen = new Set<string>();
+
+  rows.slice(headerIndex + 1).forEach((row, rowIndex) => {
+    if (row.every((cell) => cell === null || cellText(cell) === "")) return;
+    const excelRow = headerIndex + rowIndex + 2;
+    const year = parseArea(row[yearColumn] ?? null);
+    const monthName = cellText(row[monthColumn] ?? null).toLocaleUpperCase("es-MX");
+    const month = passengerMonths[normalized(monthName)] ?? null;
+    const passengers = parseArea(row[passengersColumn] ?? null);
+    const rawStatus = normalized(row[statusColumn] ?? null);
+    const status = rawStatus === "real"
+      ? "real"
+      : rawStatus === "parcial"
+        ? "partial"
+        : rawStatus === "proyeccion"
+          ? "projection"
+          : null;
+    if (year === null || !Number.isInteger(year) || year < 2000 || year > 2100 || month === null || passengers === null || passengers < 0 || status === null) {
+      errors.push(`Pasajeros, fila ${excelRow}: revisa Año, Mes, Pasajeros o Estado.`);
+      return;
+    }
+    const key = `${year}-${month}`;
+    if (seen.has(key)) {
+      errors.push(`Pasajeros, fila ${excelRow}: el mes ${monthName} de ${year} está duplicado.`);
+      return;
+    }
+    seen.add(key);
+    records.push({ year, month, monthName, passengers, status });
+  });
+
+  records.sort((a, b) => a.year - b.year || a.month - b.month);
+  return { records, errors };
 }
 
 function parseLevel(value: CellValue | null, fallback: string) {
@@ -470,11 +581,13 @@ function parseRows(rows: SheetData, locationId: string, sheetName: string, contr
 }
 
 async function parseWorkbook(file: File): Promise<ParsedWorkbook> {
-  const [sheets, etpCommercialCapacity] = await Promise.all([
-    readXlsxFile(file),
-    readEtpCommercialCapacity(file).catch(() => null),
-  ]);
+  const sheets = await readXlsxFile(file);
   const sheetsByName = new Map(sheets.map((sheet) => [normalized(sheet.sheet), sheet.data]));
+  const capacitySheet = sheetsByName.get(normalized("Capacidad"));
+  const etpCommercialCapacity = readEtpCommercialCapacityFromSheet(capacitySheet)
+    ?? await readEtpCommercialCapacity(file).catch(() => null);
+  const passengerSheet = sheetsByName.get(normalized("Pasajeros"));
+  const passengerResult = parsePassengerTraffic(passengerSheet);
   const availableDefinitions = sheetDefinitions.filter((definition) => sheetsByName.has(normalized(definition.sheetName)));
   const availableContractDefinitions = contractSheetDefinitions.filter((definition) => sheetsByName.has(normalized(definition.sheetName)));
   if (!availableDefinitions.length && !availableContractDefinitions.length) {
@@ -492,13 +605,25 @@ async function parseWorkbook(file: File): Promise<ParsedWorkbook> {
   if ([...parsed, ...contractSheets].reduce((sum, location) => sum + location.records.length, 0) > 10000) {
     throw new Error("El libro supera el límite total de 10,000 registros.");
   }
-  const capacitySheet = sheetsByName.get(normalized("Capacidad"));
   const capacityMessage = !capacitySheet
     ? "No se encontró la hoja CAPACIDAD; el indicador de ETP se mostrará sin dato."
     : etpCommercialCapacity === null
-      ? "La celda D2 de la hoja CAPACIDAD no contiene un valor numérico; el indicador de ETP se mostrará sin dato."
+      ? "La hoja CAPACIDAD requiere valores numéricos válidos en A2, C2 y A5; los indicadores de atención se mostrarán sin dato."
       : "";
-  return { locations: parsed, contractSheets, etpCommercialCapacity, capacityMessage };
+  const passengerMessage = !passengerSheet
+    ? "No se encontró la hoja PASAJEROS; el análisis de demanda se mostrará sin dato."
+    : passengerResult.records.length === 0
+      ? "La hoja PASAJEROS no contiene registros mensuales válidos."
+      : "";
+  return {
+    locations: parsed,
+    contractSheets,
+    etpCommercialCapacity,
+    capacityMessage,
+    passengerTraffic: passengerResult.records,
+    passengerErrors: passengerResult.errors,
+    passengerMessage,
+  };
 }
 
 export default function DataUploadModal({ open, onClose, onSuccess }: {
@@ -511,8 +636,10 @@ export default function DataUploadModal({ open, onClose, onSuccess }: {
   const [contractSheets, setContractSheets] = useState<ParsedLocation[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [notices, setNotices] = useState<string[]>([]);
-  const [etpCommercialCapacity, setEtpCommercialCapacity] = useState<number | null>(null);
+  const [etpCommercialCapacity, setEtpCommercialCapacity] = useState<EtpCommercialCapacityData | null>(null);
+  const [passengerTraffic, setPassengerTraffic] = useState<PassengerTrafficRecord[]>([]);
   const [capacityMessage, setCapacityMessage] = useState("");
+  const [passengerMessage, setPassengerMessage] = useState("");
   const [error, setError] = useState("");
   const [parsing, setParsing] = useState(false);
 
@@ -528,7 +655,9 @@ export default function DataUploadModal({ open, onClose, onSuccess }: {
     setLocations([]);
     setContractSheets([]);
     setEtpCommercialCapacity(null);
+    setPassengerTraffic([]);
     setCapacityMessage("");
+    setPassengerMessage("");
     if (!file) return;
     if (!file.name.toLocaleLowerCase().endsWith(".xlsx")) {
       setError("Selecciona un archivo de Excel con extensión .xlsx.");
@@ -541,8 +670,10 @@ export default function DataUploadModal({ open, onClose, onSuccess }: {
       setLocations(parsed.locations);
       setContractSheets(parsed.contractSheets);
       setEtpCommercialCapacity(parsed.etpCommercialCapacity);
+      setPassengerTraffic(parsed.passengerTraffic);
       setCapacityMessage(parsed.capacityMessage);
-      setWarnings([...parsed.locations, ...parsed.contractSheets].flatMap((location) => location.errors).slice(0, 12));
+      setPassengerMessage(parsed.passengerMessage);
+      setWarnings([...[...parsed.locations, ...parsed.contractSheets].flatMap((location) => location.errors), ...parsed.passengerErrors].slice(0, 12));
       setNotices([...parsed.locations, ...parsed.contractSheets].flatMap((location) => location.notices).slice(0, 12));
     } catch (parseError) {
       setError(parseError instanceof Error ? parseError.message : "No se pudo leer el archivo.");
@@ -560,6 +691,7 @@ export default function DataUploadModal({ open, onClose, onSuccess }: {
       contractRecords: contractSheets.flatMap((sheet) => sheet.records),
       totalRecords,
       etpCommercialCapacity,
+      passengerTraffic,
     });
   };
 
@@ -576,7 +708,7 @@ export default function DataUploadModal({ open, onClose, onSuccess }: {
           <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(event) => selectFile(event.target.files?.[0])} />
           <span className="file-icon">XLSX</span>
           <strong>{parsing ? "Leyendo las zonas disponibles…" : filename || "Selecciona el libro consolidado"}</strong>
-          <small>Admite zonas comerciales y las hojas Contratos Cancelados · Contratos Fenecidos · Convenios · Indicador ETP opcional: CAPACIDAD (D2)</small>
+          <small>Admite zonas comerciales, hojas contractuales y los modelos CAPACIDAD y PASAJEROS.</small>
           {parsing && <span className="file-reading-progress" aria-hidden="true"><i /><i /><i /></span>}
         </label>
 
@@ -593,16 +725,18 @@ export default function DataUploadModal({ open, onClose, onSuccess }: {
               <div><strong>{totalRecords}</strong><span>Registros válidos</span></div>
               <div><strong>{new Intl.NumberFormat("es-MX", { maximumFractionDigits: 1 }).format(totalArea)} m²</strong><span>Superficie detectada</span></div>
               <div><strong>{locations.length}/7</strong><span>Zonas reconocidas</span></div>
-              <div><strong>{etpCommercialCapacity === null ? "Sin dato" : new Intl.NumberFormat("es-MX", { maximumFractionDigits: 0 }).format(etpCommercialCapacity)}</strong><span>Capacidad comercial ETP (Pax.)</span></div>
+              <div><strong>{etpCommercialCapacity === null ? "Sin dato" : new Intl.NumberFormat("es-MX", { maximumFractionDigits: 0 }).format(etpCommercialCapacity.commercialPassengerCapacity)}</strong><span>Capacidad comercial ETP (Pax.)</span></div>
             </div>
             <div className="sheet-summary-list" aria-label="Resultado por hoja">
               {allParsedSheets.map((location) => (
                 <div key={location.locationId}><span>{location.sheetName}</span><strong>{location.records.length} registros</strong></div>
               ))}
+              {passengerTraffic.length > 0 && <div><span>Pasajeros</span><strong>{passengerTraffic.length} registros mensuales</strong></div>}
             </div>
           </>
         )}
         {capacityMessage && <div className="upload-message capacity-note">{capacityMessage}</div>}
+        {passengerMessage && <div className="upload-message capacity-note">{passengerMessage}</div>}
         {notices.length > 0 && <div className="upload-message capacity-note"><strong>Fechas omitidas por revisión:</strong>{notices.map((notice, index) => <span key={`${notice}-${index}`}>{notice}</span>)}</div>}
         {warnings.length > 0 && <div className="upload-message warning"><strong>Corrige el archivo antes de guardar:</strong>{warnings.map((warning) => <span key={warning}>{warning}</span>)}</div>}
         {error && <div className="upload-message error" role="alert">{error}</div>}

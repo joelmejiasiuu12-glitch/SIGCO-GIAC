@@ -16,13 +16,14 @@ type Metric = {
   label: string;
   value: string;
   note: string;
-  analysis?: MetricAnalysis;
+  analysis?: string;
+  links?: MetricLink[];
 };
 
-type MetricAnalysis = {
-  summary: string;
-  impact: string;
-  recommendation: string;
+type MetricLink = {
+  label: string;
+  value: string;
+  detail: string;
 };
 
 type ChartDatum = {
@@ -195,51 +196,48 @@ function surfaceMetrics(records: LocalRecord[]): Metric[] {
   const availableAverage = average(availableAreas);
   const minimumArea = areas.length ? Math.min(...areas) : null;
   const maximumArea = areas.length ? Math.max(...areas) : null;
+  const averageMedianDifference = generalAverage !== null && generalMedian !== null
+    ? ((generalAverage - generalMedian) / generalMedian) * 100
+    : null;
+  const availableOperatingRatio = availableAverage !== null && operatingAverage !== null
+    ? availableAverage / operatingAverage
+    : null;
+  const rangeRatio = minimumArea !== null && maximumArea !== null
+    ? maximumArea / minimumArea
+    : null;
 
   return [
     {
       label: "Promedio general",
       value: formatArea(generalAverage),
       note: "Tamaño medio de la selección",
-      analysis: {
-        summary: `La superficie media nominal de los locales es ${formatArea(generalAverage)}; los espacios de gran tamaño pueden elevar este resultado.`,
-        impact: "Ayuda a dimensionar la capacidad general, pero no siempre representa el formato más frecuente del inventario.",
-        recommendation: "Compararlo con la mediana antes de definir formatos comerciales, rentas o necesidades de consolidación.",
-      },
+      analysis: generalAverage === null
+        ? "Aún no hay superficies válidas para calcular este indicador; contar con ellas es indispensable para dimensionar el inventario y definir formatos comerciales comparables."
+        : `El local promedio mide ${formatArea(generalAverage)}${generalMedian !== null ? `, frente a una mediana de ${formatArea(generalMedian)}` : ""}. Esta comparación permite saber si los espacios grandes elevan la media y evita usar un tamaño poco representativo al planear rentas, adecuaciones o nuevas asignaciones.`,
     },
     {
       label: "Mediana general",
       value: formatArea(generalMedian),
       note: "Tamaño típico sin sesgo de extremos",
-      analysis: {
-        summary: `La mitad de los locales se encuentra por debajo de ${formatArea(generalMedian)} y la otra mitad por encima.`,
-        impact: generalAverage !== null && generalMedian !== null && generalAverage > generalMedian * 1.35
-          ? "La diferencia frente al promedio confirma que unos pocos macrolocales elevan la media y que el inventario cotidiano es de formato menor."
-          : "La cercanía con el promedio indica una distribución de tamaños relativamente homogénea.",
-        recommendation: "Usar esta medida como referencia del módulo comercial típico y prever fusiones cuando el giro requiera más superficie.",
-      },
+      analysis: generalMedian === null
+        ? "Aún no hay superficies válidas para identificar el tamaño típico del inventario; este dato es necesario para evitar que los espacios extremos distorsionen la planeación."
+        : `La mitad de los locales mide hasta ${formatArea(generalMedian)} y la otra mitad supera ese valor${averageMedianDifference !== null ? `; el promedio es ${Math.abs(averageMedianDifference).toFixed(0)}% ${averageMedianDifference >= 0 ? "mayor" : "menor"}` : ""}. Es la referencia más estable para definir el formato comercial habitual sin el sesgo de locales excepcionalmente grandes o pequeños.`,
     },
     {
       label: "Promedio ocupado",
       value: formatArea(operatingAverage),
       note: "Espacios en funcionamiento",
-      analysis: {
-        summary: `Los espacios que ya operan tienen una superficie promedio de ${formatArea(operatingAverage)}.`,
-        impact: "Muestra el tamaño de local que ha logrado mayor absorción y operación efectiva dentro del ETP.",
-        recommendation: "Tomar este formato como referencia para comercialización, sin dejar de validar las necesidades específicas de cada giro.",
-      },
+      analysis: operatingAverage === null
+        ? "No hay superficies válidas de locales en funcionamiento; este indicador permite reconocer qué tamaño ha logrado una ocupación y operación efectivas."
+        : `Los ${numberFormat.format(operatingAreas.length)} locales en funcionamiento tienen una superficie promedio de ${formatArea(operatingAverage)}. Este valor muestra el tamaño que el mercado ya absorbió y sirve como referencia objetiva para orientar futuras asignaciones y adecuaciones.`,
     },
     {
       label: "Promedio disponible",
       value: formatArea(availableAverage),
       note: "Espacios actualmente vacantes",
-      analysis: {
-        summary: `La superficie media de los espacios disponibles es ${formatArea(availableAverage)}.`,
-        impact: availableAverage !== null && operatingAverage !== null && availableAverage > operatingAverage * 1.35
-          ? "La disponibilidad se concentra en formatos mayores a los que actualmente absorbe el mercado, lo que puede prolongar su colocación."
-          : "El tamaño disponible es cercano al formato que ya opera, por lo que existe una condición favorable para su colocación.",
-        recommendation: "Evaluar subdivisión, fusión o adecuación comercial de los espacios cuya dimensión dificulte encontrar un arrendatario compatible.",
-      },
+      analysis: availableAverage === null
+        ? "No hay superficies válidas de espacios disponibles; medirlas permite anticipar si el tamaño del inventario vacante facilita o dificulta su colocación."
+        : `Los ${numberFormat.format(availableAreas.length)} espacios disponibles promedian ${formatArea(availableAverage)}${availableOperatingRatio !== null ? `, equivalente a ${numberFormat.format(availableOperatingRatio)} veces el promedio ocupado` : ""}. Esta brecha revela si la vacancia se concentra en formatos difíciles de colocar y sustenta decisiones de subdivisión, fusión o adecuación.`,
     },
     {
       label: "Rango de superficie",
@@ -247,13 +245,9 @@ function surfaceMetrics(records: LocalRecord[]): Metric[] {
         ? `${numberFormat.format(minimumArea!)}–${numberFormat.format(maximumArea!)} m²`
         : "Sin dato",
       note: "Menor y mayor espacio registrado",
-      analysis: {
-        summary: minimumArea === null || maximumArea === null
-          ? "No existen superficies válidas para establecer el rango."
-          : `El inventario abarca desde ${numberFormat.format(minimumArea)} m² hasta ${numberFormat.format(maximumArea)} m².`,
-        impact: "La amplitud permite atender desde módulos e islas hasta conceptos de gran formato, pero exige estrategias de colocación diferenciadas.",
-        recommendation: "Segmentar el inventario por tamaño y definir acciones específicas para módulos pequeños, locales medios y macrolocales.",
-      },
+      analysis: minimumArea === null || maximumArea === null
+        ? "No existen superficies válidas para establecer el rango; conocer sus extremos permite segmentar el inventario y evitar una estrategia comercial única para espacios distintos."
+        : `La superficie va de ${numberFormat.format(minimumArea)} a ${numberFormat.format(maximumArea)} m²${rangeRatio !== null ? `, una amplitud de ${numberFormat.format(rangeRatio)} veces` : ""}. Esta variación confirma que módulos pequeños y macrolocales requieren estrategias de precio, giro y colocación diferenciadas.`,
     },
   ];
 }
@@ -268,28 +262,31 @@ function tenantMetrics(records: LocalRecord[], includeEtpAnalysis = false): Metr
       .filter((record) => record.estatus === "EN FUNCIONAMIENTO")
       .map((record) => record.marca!.trim().toLocaleLowerCase("es-MX")),
   );
-  const brandArea = new Map<string, number>();
+  const brandDetails = new Map<string, { label: string; area: number; locations: Set<string> }>();
   branded.forEach((record) => {
-    const brand = record.marca!.trim().toLocaleLowerCase("es-MX");
-    brandArea.set(brand, (brandArea.get(brand) ?? 0) + (record.metraje ?? 0));
+    const label = record.marca!.trim();
+    const brand = label.toLocaleLowerCase("es-MX");
+    const current = brandDetails.get(brand) ?? { label, area: 0, locations: new Set<string>() };
+    current.area += record.metraje ?? 0;
+    if (record.nomenclatura) current.locations.add(record.nomenclatura);
+    brandDetails.set(brand, current);
   });
-  const topThreeArea = [...brandArea.values()]
-    .sort((a, b) => b - a)
-    .slice(0, 3)
-    .reduce((sum, value) => sum + value, 0);
+  const topThreeBrands = [...brandDetails.values()]
+    .sort((a, b) => b.area - a.area)
+    .slice(0, 3);
+  const topThreeArea = topThreeBrands.reduce((sum, brand) => sum + brand.area, 0);
   const totalArea = records.reduce((sum, record) => sum + (record.metraje ?? 0), 0);
   const multiLocationRatio = uniqueBrands.size ? branded.length / uniqueBrands.size : null;
   const concentration = totalArea ? (topThreeArea / totalArea) * 100 : null;
+  const operatingLocations = branded.filter((record) => record.estatus === "EN FUNCIONAMIENTO").length;
   const metrics: Metric[] = [
     {
       label: "Marcas operando",
       value: numberFormat.format(operatingBrands.size),
       note: "Marcas únicas en funcionamiento",
-      analysis: includeEtpAnalysis ? {
-        summary: `${numberFormat.format(operatingBrands.size)} marcas únicas se encuentran operando en la selección actual del ETP.`,
-        impact: "Una base amplia de marcas fortalece la variedad de oferta al pasajero y reduce la dependencia de pocos operadores.",
-        recommendation: "Vigilar la diversidad por giro para que el crecimiento de marcas también mejore la mezcla comercial.",
-      } : undefined,
+      analysis: includeEtpAnalysis
+        ? `${numberFormat.format(operatingBrands.size)} marcas únicas operan en ${numberFormat.format(operatingLocations)} locales de la selección actual. Esta métrica permite evaluar la diversidad real de la oferta: una base amplia reduce la dependencia de pocos operadores, siempre que también exista equilibrio entre los distintos giros comerciales.`
+        : undefined,
     },
     {
       label: "Ratio multi-ubicación",
@@ -297,31 +294,33 @@ function tenantMetrics(records: LocalRecord[], includeEtpAnalysis = false): Metr
         ? `${numberFormat.format(multiLocationRatio)} locales`
         : "Sin dato",
       note: "Locales asignados por marca",
-      analysis: includeEtpAnalysis ? {
-        summary: multiLocationRatio === null
-          ? "No existen marcas suficientes para calcular el ratio."
-          : `Cada marca concentra en promedio ${numberFormat.format(multiLocationRatio)} locales asignados.`,
-        impact: "Refleja confianza y facilita la gestión con menos interlocutores, aunque parte del valor puede corresponder a locales contiguos unificados por necesidad operativa.",
-        recommendation: "Distinguir futuras expansiones comerciales de las consolidaciones físicas necesarias para cocina, almacenamiento o mayor superficie.",
-      } : undefined,
+      analysis: includeEtpAnalysis
+        ? multiLocationRatio === null
+          ? "No existen marcas suficientes para calcular cuántos locales concentra cada operador; este dato es clave para distinguir expansión comercial de dependencia operativa."
+          : `${numberFormat.format(uniqueBrands.size)} marcas reúnen ${numberFormat.format(branded.length)} locales, equivalentes a ${numberFormat.format(multiLocationRatio)} locales por marca. El ratio muestra el nivel de expansión y concentración operativa, por lo que ayuda a detectar dependencia de operadores con múltiples ubicaciones.`
+        : undefined,
     },
     {
       label: "Concentración Top 3",
       value: concentration !== null ? `${numberFormat.format(concentration)}%` : "Sin dato",
       note: "Participación del área total seleccionada",
-      analysis: includeEtpAnalysis ? {
-        summary: concentration === null
-          ? "No existe superficie suficiente para calcular la concentración."
-          : `Las tres marcas con mayor superficie concentran ${numberFormat.format(concentration)}% del área seleccionada.`,
-        impact: concentration === null
-          ? "La lectura de riesgo queda pendiente hasta contar con superficie y marcas válidas."
-          : concentration <= 20
-            ? "La concentración es baja: existe alta diversificación y la salida de un solo actor tendría un efecto acotado sobre la ocupación."
-            : concentration <= 40
-              ? "La concentración es moderada: la cartera mantiene diversidad, pero conviene vigilar la exposición a los principales ocupantes."
-              : "La concentración es elevada: una decisión de los principales ocupantes podría afectar de forma importante la ocupación total.",
-        recommendation: "Mantener una mezcla equilibrada y revisar que las nuevas asignaciones no incrementen innecesariamente la dependencia de pocos actores.",
-      } : undefined,
+      analysis: includeEtpAnalysis
+        ? concentration === null
+          ? "No existe superficie suficiente para medir la concentración; esta métrica es necesaria para estimar cuánto afectaría la salida de los principales ocupantes."
+          : `Las tres marcas con mayor superficie ocupan ${numberFormat.format(topThreeArea)} de ${numberFormat.format(totalArea)} m², es decir, ${numberFormat.format(concentration)}% del área seleccionada. ${concentration <= 20 ? "La baja concentración confirma una cartera diversificada y limita el impacto de la salida de un solo ocupante." : concentration <= 40 ? "La concentración es moderada y justifica vigilar la exposición a los principales ocupantes." : "La concentración es elevada y señala un riesgo relevante de ocupación ante la salida de alguno de los principales actores."}`
+        : undefined,
+      links: includeEtpAnalysis
+        ? topThreeBrands.map((brand) => {
+            const locations = [...brand.locations];
+            const visibleLocations = locations.slice(0, 3).join(", ");
+            const remainingLocations = Math.max(locations.length - 3, 0);
+            return {
+              label: brand.label,
+              value: brand.label,
+              detail: `${locations.length === 1 ? "Local" : "Locales"} ${visibleLocations || "sin nomenclatura"}${remainingLocations ? ` y ${remainingLocations} más` : ""} · ${numberFormat.format(brand.area)} m²`,
+            };
+          })
+        : undefined,
     },
   ];
   return metrics;
@@ -557,55 +556,90 @@ function donutBackground(data: ChartDatum[], total: number) {
   return `conic-gradient(${segments.join(", ")})`;
 }
 
-function MetricAnalysisModal({ metric, onClose }: { metric: Metric; onClose: () => void }) {
-  const closeButtonRef = useRef<HTMLButtonElement>(null);
+function AnalyticsMetric({
+  metric,
+  analysisOpen = false,
+  onToggleAnalysis,
+  onOpenMetricLink,
+}: {
+  metric: Metric;
+  analysisOpen?: boolean;
+  onToggleAnalysis?: (metric: Metric) => void;
+  onOpenMetricLink?: (value: string) => void;
+}) {
+  const metricRef = useRef<HTMLElement>(null);
+  const [popoverSide, setPopoverSide] = useState<"left" | "right">("right");
+  const analysisId = `metric-analysis-${metric.label
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .toLowerCase()}`;
 
   useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+    if (!analysisOpen || !onToggleAnalysis) return;
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (!metricRef.current?.contains(event.target as Node)) onToggleAnalysis(metric);
     };
-    document.body.style.overflow = "hidden";
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onToggleAnalysis(metric);
+    };
+    document.addEventListener("mousedown", closeOnOutsideClick);
     window.addEventListener("keydown", closeOnEscape);
-    closeButtonRef.current?.focus();
     return () => {
-      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("mousedown", closeOnOutsideClick);
       window.removeEventListener("keydown", closeOnEscape);
     };
-  }, [onClose]);
+  }, [analysisOpen, metric, onToggleAnalysis]);
 
-  if (!metric.analysis) return null;
+  const toggleAnalysis = () => {
+    if (!analysisOpen && metricRef.current) {
+      const bounds = metricRef.current.getBoundingClientRect();
+      setPopoverSide(window.innerWidth - bounds.right >= 330 ? "right" : "left");
+    }
+    onToggleAnalysis?.(metric);
+  };
 
   return (
-    <div className="metric-analysis-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section className="metric-analysis-modal" role="dialog" aria-modal="true" aria-labelledby="metric-analysis-title">
-        <header>
-          <div>
-            <span className="section-kicker">Lectura ejecutiva del indicador</span>
-            <h2 id="metric-analysis-title">{metric.label}</h2>
-          </div>
-          <button ref={closeButtonRef} type="button" onClick={onClose} aria-label={`Cerrar análisis de ${metric.label}`}>×</button>
-        </header>
-        <div className="metric-analysis-value"><span>Valor actual</span><strong>{metric.value}</strong><small>{metric.note}</small></div>
-        <div className="metric-analysis-sections">
-          <section><span>Qué indica</span><p>{metric.analysis.summary}</p></section>
-          <section><span>Impacto</span><p>{metric.analysis.impact}</p></section>
-          <section><span>Enfoque sugerido</span><p>{metric.analysis.recommendation}</p></section>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function AnalyticsMetric({ metric, onOpenAnalysis }: { metric: Metric; onOpenAnalysis?: (metric: Metric) => void }) {
-  return (
-    <article className="analytics-metric">
-      {metric.analysis && onOpenAnalysis && (
-        <button type="button" className="metric-analysis-trigger" onClick={() => onOpenAnalysis(metric)} aria-label={`Ver análisis de ${metric.label}`} title={`Ver análisis de ${metric.label}`}>i</button>
+    <article className="analytics-metric" ref={metricRef}>
+      {metric.analysis && onToggleAnalysis && (
+        <button
+          type="button"
+          className="metric-analysis-trigger"
+          onClick={toggleAnalysis}
+          aria-label={`Ver importancia de ${metric.label}`}
+          aria-expanded={analysisOpen}
+          aria-controls={analysisId}
+          title={`Ver importancia de ${metric.label}`}
+        >i</button>
       )}
       <span>{metric.label}</span>
       <strong>{metric.value}</strong>
       <small>{metric.note}</small>
+      {analysisOpen && metric.analysis && (
+        <aside
+          id={analysisId}
+          className="metric-analysis-popover"
+          data-side={popoverSide}
+          role="dialog"
+          aria-label={`Importancia de ${metric.label}`}
+        >
+          <header>
+            <span>Por qué importa</span>
+            <button type="button" onClick={toggleAnalysis} aria-label={`Cerrar información de ${metric.label}`}>×</button>
+          </header>
+          <p>{metric.analysis}</p>
+          {metric.links && metric.links.length > 0 && onOpenMetricLink && (
+            <div className="metric-analysis-links" aria-label="Marcas principales y locales ocupados">
+              {metric.links.map((link, index) => (
+                <button type="button" key={link.value} onClick={() => onOpenMetricLink(link.value)}>
+                  <span><b>{index + 1}</b><strong>{link.label}</strong><em>Ver locales →</em></span>
+                  <small>{link.detail}</small>
+                </button>
+              ))}
+            </div>
+          )}
+        </aside>
+      )}
     </article>
   );
 }
@@ -613,11 +647,13 @@ function AnalyticsMetric({ metric, onOpenAnalysis }: { metric: Metric; onOpenAna
 export function LocationIndicators({
   locationId,
   records,
+  onOpenBrand,
 }: {
   locationId: string;
   records: LocalRecord[];
+  onOpenBrand?: (brand: string) => void;
 }) {
-  const [selectedMetric, setSelectedMetric] = useState<Metric | null>(null);
+  const [selectedMetric, setSelectedMetric] = useState<string | null>(null);
   const metrics =
     locationId === "etp" ? surfaceMetrics(records) : contextualMetrics(locationId, records);
   const tenantMetricList = tenantMetrics(records, locationId === "etp");
@@ -639,7 +675,13 @@ export function LocationIndicators({
 
       <div className="analytics-kpi-grid">
         {metrics.map((metric) => (
-          <AnalyticsMetric metric={metric} key={metric.label} onOpenAnalysis={locationId === "etp" ? setSelectedMetric : undefined} />
+          <AnalyticsMetric
+            metric={metric}
+            key={metric.label}
+            analysisOpen={selectedMetric === metric.label}
+            onToggleAnalysis={locationId === "etp" ? () => setSelectedMetric((current) => current === metric.label ? null : metric.label) : undefined}
+            onOpenMetricLink={onOpenBrand}
+          />
         ))}
       </div>
 
@@ -651,10 +693,15 @@ export function LocationIndicators({
       </div>
       <div className="analytics-kpi-grid tenant-kpis">
         {tenantMetricList.map((metric) => (
-          <AnalyticsMetric metric={metric} key={metric.label} onOpenAnalysis={locationId === "etp" ? setSelectedMetric : undefined} />
+          <AnalyticsMetric
+            metric={metric}
+            key={metric.label}
+            analysisOpen={selectedMetric === metric.label}
+            onToggleAnalysis={locationId === "etp" ? () => setSelectedMetric((current) => current === metric.label ? null : metric.label) : undefined}
+            onOpenMetricLink={onOpenBrand}
+          />
         ))}
       </div>
-      {selectedMetric && <MetricAnalysisModal metric={selectedMetric} onClose={() => setSelectedMetric(null)} />}
     </section>
   );
 }
