@@ -11,6 +11,7 @@ import InstitutionalCenter from "./components/InstitutionalCenter";
 import IntelligenceCenter, { type IntelligenceView } from "./components/IntelligenceCenter";
 import ReportsCenter from "./components/ReportsCenter";
 import SummaryDashboard from "./components/SummaryDashboard";
+import LocalQueryAssistant from "./components/LocalQueryAssistant";
 import { locationOptions, type AnalysisTarget, type EtpCommercialCapacityData, type LocalRecord, type PassengerTrafficRecord } from "./types";
 
 type FilterKey =
@@ -227,6 +228,7 @@ export default function DashboardClient() {
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [showAllFilters, setShowAllFilters] = useState(false);
+  const [showLocalAiChat, setShowLocalAiChat] = useState(false);
   const [isModuleMenuFixed, setIsModuleMenuFixed] = useState(false);
   const moduleMenuSentinelRef = useRef<HTMLDivElement>(null);
 
@@ -591,9 +593,18 @@ export default function DashboardClient() {
               <span>{activeModule === "home" ? "Panorama" : activeModule === "locals" ? "Locales" : activeModule === "contracts" ? "Contratos" : activeModule === "finances" ? "Finanzas" : "Análisis"}</span>
               {activeModule === "home" && <><button className={homeView === "global" ? "active" : ""} type="button" onClick={() => setHomeView("global")}>Resumen global</button><button className={homeView === "zone" ? "active" : ""} type="button" onClick={() => setHomeView("zone")}>Resumen de zona</button></>}
               {activeModule === "locals" && (
-                <button className="active" type="button" onClick={() => setLocalView("directory")}>
-                  Directorio
-                </button>
+                <>
+                  <button className="active" type="button" onClick={() => setLocalView("directory")}>
+                    Directorio
+                  </button>
+                  <button
+                    className={`ai-assistant-trigger-btn ${showLocalAiChat ? "active" : ""}`}
+                    type="button"
+                    onClick={() => setShowLocalAiChat((prev) => !prev)}
+                  >
+                    ✨ Asistente IA
+                  </button>
+                </>
               )}
               {activeModule === "contracts" && (
                 <button className="active" type="button" onClick={() => setContractView("summary")}>
@@ -979,6 +990,18 @@ export default function DashboardClient() {
         onClose={() => setShowCommercialAlerts(false)}
       />
       <InstitutionalCenter open={showInstitutional} onClose={() => setShowInstitutional(false)} />
+      {activeModule === "locals" && (
+        <LocalQueryAssistant
+          records={records}
+          locationName={currentLocation.shortName}
+          isOpen={showLocalAiChat}
+          onClose={() => setShowLocalAiChat(false)}
+          onSelectLocal={(nomenclature) => {
+            setSearch(nomenclature);
+            setPage(1);
+          }}
+        />
+      )}
     </main>
   );
 }
