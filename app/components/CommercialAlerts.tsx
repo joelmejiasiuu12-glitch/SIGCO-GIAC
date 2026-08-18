@@ -41,7 +41,7 @@ export function buildCommercialAlerts(records: LocalRecord[], today = new Date()
         : daysRemaining <= 7
           ? "critical"
           : "upcoming";
-    return [{ record, targetDate, targetLabel: record.renewalDate ? "Renovación" : "Conclusión", daysRemaining, level }];
+    return [{ record, targetDate, targetLabel: (record.renewalDate ? "Renovación" : "Conclusión") as "Renovación" | "Conclusión", daysRemaining, level }];
   }).sort((left, right) => {
     const priority: Record<CommercialAlertLevel, number> = { overdue: 0, today: 1, critical: 2, upcoming: 3 };
     return priority[left.level] - priority[right.level] || left.daysRemaining - right.daysRemaining;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { EtpCommercialCapacityData, LocalRecord, PassengerTrafficRecord } from "@/app/types";
+import type { AnalysisTarget, EtpCommercialCapacityData, LocalRecord, PassengerTrafficRecord } from "@/app/types";
 import { LocationIndicators } from "./DirectoryAnalytics";
 
 const numberFormat = new Intl.NumberFormat("es-MX", { maximumFractionDigits: 1 });
@@ -97,11 +97,12 @@ function countBy(records: LocalRecord[], key: keyof LocalRecord) {
   return [...counts.entries()].sort((a, b) => b[1] - a[1]);
 }
 
-function ExecutiveKpi({ label, value }: { label: string; value: string }) {
+function ExecutiveKpi({ label, value, onOpenAnalysis }: { label: string; value: string; onOpenAnalysis?: () => void }) {
   return (
     <article className="executive-kpi">
       <strong>{value}</strong>
       <span>{label}</span>
+      {onOpenAnalysis && <button className="executive-kpi-analysis-link" type="button" onClick={onOpenAnalysis}>Ver análisis →</button>}
     </article>
   );
 }
@@ -123,60 +124,60 @@ function DonutFigure({
   const circumference = 2 * Math.PI * 44;
   return (
     <div className="executive-donut-layout">
-        <div
-          className="executive-donut"
-          role="img"
-          aria-label={data.map(([label, value]) => `${statusLabels[label] ?? label}, ${value}, ${total ? numberFormat.format((value / total) * 100) : 0}%`).join("; ")}
-        >
-          <svg viewBox="0 0 100 100" aria-hidden="true">
-            {data.map(([label, value], index) => {
-              const share = total ? value / total : 0;
-              const offset = total
-                ? data.slice(0, index).reduce((sum, [, previousValue]) => sum + previousValue, 0) / total
-                : 0;
-              return (
-                <circle
-                  key={label}
-                  cx="50"
-                  cy="50"
-                  r="44"
-                  fill="none"
-                  stroke={statusPalette[label] ?? colors[index % colors.length]}
-                  strokeWidth="12"
-                  strokeDasharray={`${share * circumference} ${circumference}`}
-                  strokeDashoffset={-offset * circumference}
-                  transform="rotate(-90 50 50)"
-                  className="donut-segment"
-                >
-                  <title>{`${statusLabels[label] ?? label}: ${numberFormat.format(value)} (${total ? numberFormat.format(share * 100) : 0}%)`}</title>
-                </circle>
-              );
-            })}
-          </svg>
-          <div><strong>{numberFormat.format(total)}</strong><span>{center}</span></div>
-        </div>
-        <div className={`executive-legend${onSelect ? " portfolio-selectable-legend" : ""}`}>
-          {data.slice(0, 8).map(([label, value], index) => {
-            const content = (
-              <>
+      <div
+        className="executive-donut"
+        role="img"
+        aria-label={data.map(([label, value]) => `${statusLabels[label] ?? label}, ${value}, ${total ? numberFormat.format((value / total) * 100) : 0}%`).join("; ")}
+      >
+        <svg viewBox="0 0 100 100" aria-hidden="true">
+          {data.map(([label, value], index) => {
+            const share = total ? value / total : 0;
+            const offset = total
+              ? data.slice(0, index).reduce((sum, [, previousValue]) => sum + previousValue, 0) / total
+              : 0;
+            return (
+              <circle
+                key={label}
+                cx="50"
+                cy="50"
+                r="44"
+                fill="none"
+                stroke={statusPalette[label] ?? colors[index % colors.length]}
+                strokeWidth="12"
+                strokeDasharray={`${share * circumference} ${circumference}`}
+                strokeDashoffset={-offset * circumference}
+                transform="rotate(-90 50 50)"
+                className="donut-segment"
+              >
+                <title>{`${statusLabels[label] ?? label}: ${numberFormat.format(value)} (${total ? numberFormat.format(share * 100) : 0}%)`}</title>
+              </circle>
+            );
+          })}
+        </svg>
+        <div><strong>{numberFormat.format(total)}</strong><span>{center}</span></div>
+      </div>
+      <div className={`executive-legend${onSelect ? " portfolio-selectable-legend" : ""}`}>
+        {data.slice(0, 8).map(([label, value], index) => {
+          const content = (
+            <>
               <i style={{ background: statusPalette[label] ?? colors[index % colors.length] }} />
               <span title={statusLabels[label] ?? label}>{statusLabels[label] ?? label}</span>
               <strong><b>{numberFormat.format(value)}</b><small>{total ? numberFormat.format((value / total) * 100) : 0}%</small></strong>
               {onSelect && <em>Analizar</em>}
-              </>
-            );
-            return onSelect ? (
-              <button
-                type="button"
-                className={selectedLabel === label ? "active" : ""}
-                key={label}
-                onClick={() => onSelect(label)}
-                aria-pressed={selectedLabel === label}
-                aria-label={`Analizar ${statusLabels[label] ?? label}`}
-              >{content}</button>
-            ) : <div key={label}>{content}</div>;
-          })}
-        </div>
+            </>
+          );
+          return onSelect ? (
+            <button
+              type="button"
+              className={selectedLabel === label ? "active" : ""}
+              key={label}
+              onClick={() => onSelect(label)}
+              aria-pressed={selectedLabel === label}
+              aria-label={`Analizar ${statusLabels[label] ?? label}`}
+            >{content}</button>
+          ) : <div key={label}>{content}</div>;
+        })}
+      </div>
     </div>
   );
 }
@@ -194,6 +195,10 @@ function AnalysisToggle({ open, label, onClick }: { open: boolean; label: string
   );
 }
 
+function AnalysisRouteLink({ label, onClick }: { label: string; onClick: () => void }) {
+  return <button className="chart-analysis-route-link" type="button" onClick={onClick} aria-label={`Ver análisis completo de ${label}`}>Ver análisis →</button>;
+}
+
 function DonutChart({
   title,
   kicker,
@@ -202,6 +207,7 @@ function DonutChart({
   center,
   wide = false,
   analysis,
+  onOpenFullAnalysis,
 }: {
   title: string;
   kicker: string;
@@ -210,6 +216,7 @@ function DonutChart({
   center: string;
   wide?: boolean;
   analysis?: { records: LocalRecord[]; field: PortfolioField; kind: PortfolioAnalysisKind };
+  onOpenFullAnalysis?: () => void;
 }) {
   const [selectedLabel, setSelectedLabel] = useState<string | null>(data[0]?.[0] ?? null);
   const [analysisOpen, setAnalysisOpen] = useState(false);
@@ -223,7 +230,10 @@ function DonutChart({
     <article className={`executive-card donut-card${wide ? " wide-chart" : ""}`}>
       <div className="executive-heading">
         <div><span>{kicker}</span><h2>{title}</h2></div>
-        {analysis && <AnalysisToggle open={analysisOpen} label={title} onClick={() => setAnalysisOpen((current) => !current)} />}
+        <div className="chart-heading-actions">
+          {onOpenFullAnalysis && <AnalysisRouteLink label={title} onClick={onOpenFullAnalysis} />}
+          {analysis && <AnalysisToggle open={analysisOpen} label={title} onClick={() => setAnalysisOpen((current) => !current)} />}
+        </div>
       </div>
       <DonutFigure data={data} colors={colors} center={center} selectedLabel={effectiveLabel} onSelect={analysis && analysisOpen ? setSelectedLabel : undefined} />
       {analysisOpen && insight && <PortfolioAnalysisCard insight={insight} />}
@@ -394,6 +404,7 @@ function VerticalBars({
   varied = false,
   totalLabel = "locales",
   analysis,
+  onOpenFullAnalysis,
 }: {
   title: string;
   kicker: string;
@@ -402,6 +413,7 @@ function VerticalBars({
   varied?: boolean;
   totalLabel?: string;
   analysis?: { records: LocalRecord[]; field: PortfolioField; kind: PortfolioAnalysisKind };
+  onOpenFullAnalysis?: () => void;
 }) {
   const visible = data.slice(0, 18);
   const max = Math.max(...visible.map(([, value]) => value), 1);
@@ -420,6 +432,7 @@ function VerticalBars({
         <div><span>{kicker}</span><h2>{title}</h2></div>
         <div className="chart-heading-actions">
           <small>{numberFormat.format(total)} {totalLabel}</small>
+          {onOpenFullAnalysis && <AnalysisRouteLink label={title} onClick={onOpenFullAnalysis} />}
           {analysis && <AnalysisToggle open={analysisOpen} label={title} onClick={() => setAnalysisOpen((current) => !current)} />}
         </div>
       </div>
@@ -465,12 +478,14 @@ function HorizontalBars({
   data,
   totalLabel = "locales",
   analysis,
+  onOpenFullAnalysis,
 }: {
   title: string;
   kicker: string;
   data: [string, number][];
   totalLabel?: string;
   analysis?: ModuleInsight | null;
+  onOpenFullAnalysis?: () => void;
 }) {
   const max = Math.max(...data.map(([, value]) => value), 1);
   const total = data.reduce((sum, [, value]) => sum + value, 0);
@@ -479,19 +494,13 @@ function HorizontalBars({
   const selectedModuleData = analysis
     ? [...analysis.matrix, ...analysis.opportunities].find((item) => item.moduleName === selectedModule) ?? null
     : null;
-  const maxModuleRent = Math.max(...(analysis?.matrix.map((item) => item.monthlyRent) ?? []), 1);
-  const matrixQuadrants: { category: ModulePerformance["category"]; title: string; note: string }[] = [
-    { category: "potential", title: "Potencial de optimización", note: "Alta ocupación · menor $/m²" },
-    { category: "star", title: "Módulos estrella", note: "Alta ocupación · alto $/m²" },
-    { category: "attention", title: "Atención prioritaria", note: "Baja ocupación · menor $/m²" },
-    { category: "risk", title: "Rentables con riesgo", note: "Baja ocupación · alto $/m²" },
-  ];
   return (
     <article className="executive-card summary-horizontal-card">
       <div className="executive-heading">
         <div><span>{kicker}</span><h2>{title}</h2></div>
         <div className="chart-heading-actions">
           <small>{numberFormat.format(total)} {totalLabel}</small>
+          {onOpenFullAnalysis && <AnalysisRouteLink label={title} onClick={onOpenFullAnalysis} />}
           {analysis && <AnalysisToggle open={analysisOpen} label={title} onClick={() => setAnalysisOpen((current) => !current)} />}
         </div>
       </div>
@@ -512,50 +521,12 @@ function HorizontalBars({
         <aside className="inventory-analysis module-analysis" aria-label="Análisis comercial por módulo">
           <header>
             <div><span>Análisis automático</span><strong>Análisis integral por módulo</strong></div>
-            <small>Renta + ocupación + vacancia</small>
+            <small>Inventario vacante y distribución física</small>
           </header>
-          <p>{analysis.performanceNarrative}</p>
-          {analysis.matrix.length ? (
-            <div className="module-bcg-wrap">
-              <div className="module-bcg-y-label"><span>Ocupación alta</span><span>Ocupación baja</span></div>
-              <div className="module-bcg-matrix">
-                {matrixQuadrants.map((quadrant) => {
-                  const quadrantModules = analysis.matrix
-                    .filter((item) => item.category === quadrant.category)
-                    .sort((a, b) => b.monthlyRent - a.monthlyRent);
-                  return (
-                    <section data-category={quadrant.category} key={quadrant.category}>
-                      <header><div><strong>{quadrant.title}</strong><span>{quadrant.note}</span></div><b>{quadrantModules.length}</b></header>
-                      <div className="module-bcg-items">
-                        {quadrantModules.slice(0, 5).map((item) => (
-                          <button
-                            type="button"
-                            className={selectedModule === item.moduleName ? "active" : ""}
-                            key={`${quadrant.category}-${item.moduleName}`}
-                            onClick={() => setSelectedModule((current) => current === item.moduleName ? null : item.moduleName)}
-                            aria-expanded={selectedModule === item.moduleName}
-                            title={`${item.moduleName}: ${currencyFormat.format(item.monthlyRent)} mensuales, ${numberFormat.format(item.occupancy)}% de ocupación`}
-                          >
-                            <b style={{ "--module-bubble": `${24 + (item.monthlyRent / maxModuleRent) * 16}px` } as React.CSSProperties}>{item.moduleName}</b>
-                            <span><strong>{currencyFormat.format(item.rentPerM2 ?? 0)}/m²</strong><small>{numberFormat.format(item.occupancy)}% ocup.</small></span>
-                          </button>
-                        ))}
-                        {quadrantModules.length > 5 && <small className="module-bcg-more">+{quadrantModules.length - 5} módulos</small>}
-                        {!quadrantModules.length && <small className="module-bcg-empty">Sin módulos en este cuadrante</small>}
-                      </div>
-                    </section>
-                  );
-                })}
-              </div>
-              <div className="module-bcg-x-label"><span>Menor renta por m²</span><strong>Renta mensual por m²</strong><span>Mayor renta por m²</span></div>
-            </div>
-          ) : (
-            <p className="module-finance-empty">No hay rentas mensuales válidas de locales en funcionamiento para clasificar el desempeño por módulo.</p>
-          )}
+          <p>{analysis.narrative}</p>
           {analysis.opportunities.length > 0 && (
             <section className="module-vacancy-priority">
               <header><span>Inventario disponible</span><strong>Prioridad de comercialización</strong></header>
-              <p>{analysis.narrative}</p>
               <div className="module-priority-list">
                 {analysis.opportunities.map((item, index) => (
                   <button
@@ -574,7 +545,17 @@ function HorizontalBars({
               </div>
             </section>
           )}
-          <small className="module-analysis-method">Cobertura financiera: {numberFormat.format(analysis.financialCoverage)}% de los locales en funcionamiento cuentan con renta mensual registrada. Los cuadrantes se dividen con las medianas del inventario comparable: {currencyFormat.format(analysis.medianRentPerM2)}/m² y {numberFormat.format(analysis.medianOccupancy)}% de ocupación. El tamaño del módulo representa su renta mensual total registrada.</small>
+          {onOpenFullAnalysis && (
+            <div className="module-matrix-route-wrap">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={onOpenFullAnalysis}
+              >
+                Ver Matriz de Desempeño Completa (Renta vs Ocupación) en Análisis (06) →
+              </button>
+            </div>
+          )}
           {selectedModuleData && (
             <SpacePreviewPanel
               title={`Módulo ${selectedModuleData.moduleName}`}
@@ -585,6 +566,172 @@ function HorizontalBars({
         </aside>
       )}
     </article>
+  );
+}
+
+export function ModuleBcgAnalysisCard({
+  records,
+  selectedModule,
+  onSelectModule,
+}: {
+  records: LocalRecord[];
+  selectedModule: string | null;
+  onSelectModule: (moduleName: string | null) => void;
+}) {
+  const analysis = buildModuleInsight(records);
+  if (!analysis || !analysis.matrix.length) {
+    return (
+      <p className="module-finance-empty">No hay rentas mensuales válidas de locales en funcionamiento para clasificar el desempeño por módulo en la selección activa.</p>
+    );
+  }
+  const maxModuleRent = Math.max(...analysis.matrix.map((item) => item.monthlyRent), 1);
+  const matrixQuadrants: { category: ModulePerformance["category"]; title: string; note: string }[] = [
+    { category: "potential", title: "Potencial de optimización", note: "Alta ocupación · menor $/m²" },
+    { category: "star", title: "Módulos estrella", note: "Alta ocupación · alto $/m²" },
+    { category: "attention", title: "Atención prioritaria", note: "Baja ocupación · menor $/m²" },
+    { category: "risk", title: "Rentables con riesgo", note: "Baja ocupación · alto $/m²" },
+  ];
+
+  const categoryLabels: Record<ModulePerformance["category"], { label: string; tone: string }> = {
+    star: { label: "Módulo Estrella", tone: "ok" },
+    potential: { label: "Potencial de Optimización", tone: "info" },
+    risk: { label: "Rentables con Riesgo", tone: "watch" },
+    attention: { label: "Atención Prioritaria", tone: "risk" },
+  };
+
+  const selectedModuleData = selectedModule
+    ? analysis.matrix.find((item) => item.moduleName === selectedModule) ?? null
+    : null;
+
+  const buildIndividualAnalysis = (item: ModulePerformance) => {
+    const rentPerM2Formatted = currencyFormat.format(item.rentPerM2 ?? 0);
+    const medianRentFormatted = currencyFormat.format(analysis.medianRentPerM2);
+    const occupancyFormatted = `${numberFormat.format(item.occupancy)}%`;
+    const vacancies = item.records.filter((r) => r.estatus === "DISPONIBLE").length;
+    const vacantArea = item.records
+      .filter((r) => r.estatus === "DISPONIBLE")
+      .reduce((sum, r) => sum + (r.metraje ?? 0), 0);
+
+    if (item.category === "star") {
+      return `El Módulo ${item.moduleName} se sitúa en el cuadrante de Módulos Estrella debido a su alta ocupación (${occupancyFormatted}) y a un ingreso unitario de ${rentPerM2Formatted}/m² (superior a la mediana institucional de ${medianRentFormatted}/m²). Diagnóstico: Módulo ancla altamente consolidado y rentable. Recomendación: Asegurar renovaciones contractuales oportunamente y preservar la continuidad operativa.`;
+    }
+    if (item.category === "potential") {
+      return `El Módulo ${item.moduleName} pertenece al cuadrante Potencial de Optimización; presenta una alta ocupación (${occupancyFormatted}), aunque su renta unitaria de ${rentPerM2Formatted}/m² se ubica por debajo de la mediana (${medianRentFormatted}/m²). Diagnóstico: Ocupación estable con margen de apreciación financiera. Recomendación: Evaluar ajustes graduales en tarifas de renta o cuotas de mantenimiento en próximas renovaciones.`;
+    }
+    if (item.category === "attention") {
+      return `El Módulo ${item.moduleName} requiere Atención Prioritaria al combinar una baja ocupación (${occupancyFormatted}) con un rendimiento unitario de ${rentPerM2Formatted}/m². Cuenta con ${vacancies} espacios vacantes (${numberFormat.format(vacantArea)} m²). Diagnóstico: Desempeño bajo en ingresos y ocupación. Recomendación: Dirigir prospección comercial activa, revisar condiciones de entrada y agilizar esquemas de adecuación física.`;
+    }
+    return `El Módulo ${item.moduleName} se posiciona en Rentables con Riesgo; genera un valor unitario elevado (${rentPerM2Formatted}/m²), pero su ocupación es reducida (${occupancyFormatted}) con ${vacancies} espacios disponibles. Diagnóstico: Alto valor por m² expuesto a vulnerabilidad por vacancia acumulada. Recomendación: Prospectar marcas de alto valor para cubrir el inventario pendiente sin degradar la tarifa por metro cuadrado.`;
+  };
+
+  return (
+    <div className="module-bcg-container">
+      <div className="module-bcg-wrap">
+        <div className="module-bcg-y-label"><span>Ocupación alta</span><span>Ocupación baja</span></div>
+        <div className="module-bcg-matrix">
+          {matrixQuadrants.map((quadrant) => {
+            const quadrantModules = analysis.matrix
+              .filter((item) => item.category === quadrant.category)
+              .sort((a, b) => b.monthlyRent - a.monthlyRent);
+            return (
+              <section data-category={quadrant.category} key={quadrant.category}>
+                <header><div><strong>{quadrant.title}</strong><span>{quadrant.note}</span></div><b>{quadrantModules.length}</b></header>
+                <div className="module-bcg-items">
+                  {quadrantModules.slice(0, 5).map((item) => (
+                    <button
+                      type="button"
+                      className={selectedModule === item.moduleName ? "active" : ""}
+                      key={`${quadrant.category}-${item.moduleName}`}
+                      onClick={() => onSelectModule(selectedModule === item.moduleName ? null : item.moduleName)}
+                      aria-expanded={selectedModule === item.moduleName}
+                      title={`${item.moduleName}: ${currencyFormat.format(item.monthlyRent)} mensuales, ${numberFormat.format(item.occupancy)}% de ocupación`}
+                    >
+                      <b style={{ "--module-bubble": `${24 + (item.monthlyRent / maxModuleRent) * 16}px` } as React.CSSProperties}>{item.moduleName}</b>
+                      <span><strong>{currencyFormat.format(item.rentPerM2 ?? 0)}/m²</strong><small>{numberFormat.format(item.occupancy)}% ocup.</small></span>
+                    </button>
+                  ))}
+                  {quadrantModules.length > 5 && <small className="module-bcg-more">+{quadrantModules.length - 5} módulos</small>}
+                  {!quadrantModules.length && <small className="module-bcg-empty">Sin módulos en este cuadrante</small>}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+        <div className="module-bcg-x-label"><span>Menor renta por m²</span><strong>Renta mensual por m²</strong><span>Mayor renta por m²</span></div>
+      </div>
+
+      {selectedModuleData && (
+        <section className="selected-module-detail-panel" aria-live="polite">
+          <header className="selected-module-header">
+            <div>
+              <span className="section-kicker">Módulo seleccionado</span>
+              <h3>Módulo {selectedModuleData.moduleName}</h3>
+            </div>
+            <div className="selected-module-header-actions">
+              <span className={`metric-status-badge tone-${categoryLabels[selectedModuleData.category].tone}`}>
+                {categoryLabels[selectedModuleData.category].label}
+              </span>
+              <button
+                type="button"
+                className="close-panel-button"
+                onClick={() => onSelectModule(null)}
+                aria-label={`Cerrar detalle del módulo ${selectedModuleData.moduleName}`}
+              >
+                ×
+              </button>
+            </div>
+          </header>
+
+          <article className="selected-module-analysis-box">
+            <div className="analysis-box-header">
+              <span className="section-kicker">Diagnóstico individual</span>
+              <strong>Cuadrante {categoryLabels[selectedModuleData.category].label}</strong>
+            </div>
+            <p>{buildIndividualAnalysis(selectedModuleData)}</p>
+          </article>
+
+          <div className="selected-module-kpi-grid">
+            <article className="module-kpi-card">
+              <span>Renta Mensual Total</span>
+              <strong>{currencyFormat.format(selectedModuleData.monthlyRent)}</strong>
+            </article>
+            <article className="module-kpi-card">
+              <span>Renta Promedio por M²</span>
+              <strong>{currencyFormat.format(selectedModuleData.rentPerM2 ?? 0)}/m²</strong>
+            </article>
+            <article className="module-kpi-card">
+              <span>Tasa de Ocupación</span>
+              <strong>{numberFormat.format(selectedModuleData.occupancy)}%</strong>
+              <small>{selectedModuleData.records.filter((r) => r.estatus === "EN FUNCIONAMIENTO").length} de {selectedModuleData.records.length} locales operando</small>
+            </article>
+            <article className="module-kpi-card">
+              <span>Superficie Registrada</span>
+              <strong>{numberFormat.format(selectedModuleData.records.reduce((sum, r) => sum + (r.metraje ?? 0), 0))} m²</strong>
+              <small>{numberFormat.format(selectedModuleData.records.filter((r) => r.estatus === "DISPONIBLE").reduce((sum, r) => sum + (r.metraje ?? 0), 0))} m² vacantes</small>
+            </article>
+          </div>
+
+          <SpacePreviewPanel
+            title={`Espacios en Módulo ${selectedModuleData.moduleName}`}
+            records={selectedModuleData.records}
+            onClose={() => onSelectModule(null)}
+          />
+        </section>
+      )}
+
+      <div className="module-analysis-method-card">
+        <div className="method-card-header">
+          <strong>Metodología de Clasificación</strong>
+          <span>Cobertura de datos: {numberFormat.format(analysis.financialCoverage)}%</span>
+        </div>
+        <p className="method-card-desc">
+          Cobertura financiera: {numberFormat.format(analysis.financialCoverage)}% de los locales en funcionamiento cuentan con renta mensual registrada. Los cuadrantes se dividen con las medianas del inventario comparable: 
+          {" "}<b>{currencyFormat.format(analysis.medianRentPerM2)}/m²</b> y 
+          {" "}<b>{numberFormat.format(analysis.medianOccupancy)}%</b> de ocupación. 
+          El tamaño de la etiqueta es proporcional a su renta mensual acumulada.
+        </p>
+      </div>
+    </div>
   );
 }
 
@@ -698,25 +845,37 @@ function SpacePreviewPanel({
   return (
     <section className="space-preview-panel" aria-live="polite" aria-label={`Vista previa de ${title}`}>
       <header>
-        <div><span>Vista previa</span><strong>{title}</strong><small>{numberFormat.format(records.length)} {records.length === 1 ? "espacio" : "espacios"}</small></div>
+        <div>
+          <span>Inventario del módulo</span>
+          <strong>{title}</strong>
+          <small>{numberFormat.format(records.length)} {records.length === 1 ? "espacio registrado" : "espacios registrados"}</small>
+        </div>
         <button type="button" onClick={onClose} aria-label={`Cerrar vista previa de ${title}`}>×</button>
       </header>
-      <div className="space-preview-list">
-        {visibleRecords.map((record, index) => (
-          <article key={`${record.id}-${record.nomenclatura}-${index}`}>
-            <div>
-              <strong>{record.nomenclatura || "Sin nomenclatura"}</strong>
-              <span>{record.areaComercial || "Tipo sin identificar"}</span>
-            </div>
-            <dl>
-              <div><dt>Superficie</dt><dd>{record.metraje === null ? "Sin dato" : `${numberFormat.format(record.metraje)} m²`}</dd></div>
-              <div><dt>Zona</dt><dd>{record.lado || "Sin dato"}</dd></div>
-              <div><dt>Nivel</dt><dd>{String(record.nivel ?? "Sin dato")}</dd></div>
-              <div><dt>Módulo</dt><dd>{record.modulo || "Sin dato"}</dd></div>
-              {record.monthlyRent !== null && <div><dt>Renta mensual</dt><dd>{currencyFormat.format(record.monthlyRent)}</dd></div>}
-            </dl>
-          </article>
-        ))}
+      <div className="space-preview-list minimal-space-grid">
+        {visibleRecords.map((record, index) => {
+          const isOperating = record.estatus === "EN FUNCIONAMIENTO";
+          const isAvailable = record.estatus === "DISPONIBLE";
+          const toneClass = isOperating ? "ok" : isAvailable ? "watch" : "info";
+          const statusText = statusLabels[record.estatus] ?? record.estatus;
+          return (
+            <article className="space-card-minimal" key={`${record.id}-${record.nomenclatura}-${index}`}>
+              <div className="space-card-header">
+                <div>
+                  <strong className="space-nomenclatura">{record.nomenclatura || "Sin nomenclatura"}</strong>
+                  {record.marca && <span className="space-brand">{record.marca}</span>}
+                </div>
+                <span className={`metric-status-badge tone-${toneClass}`}>{statusText}</span>
+              </div>
+              <div className="space-card-pills">
+                <span className="space-pill"><b>{record.metraje === null ? "N/D" : `${numberFormat.format(record.metraje)} m²`}</b></span>
+                {record.areaComercial && <span className="space-pill">{record.areaComercial}</span>}
+                {record.nivel !== null && <span className="space-pill">Nivel {String(record.nivel)}</span>}
+                {record.monthlyRent !== null && <span className="space-pill rent-pill">{currencyFormat.format(record.monthlyRent)}/mes</span>}
+              </div>
+            </article>
+          );
+        })}
       </div>
       {records.length > visibleRecords.length && (
         <p className="space-preview-remaining">Vista previa de 6 espacios · hay {numberFormat.format(records.length - visibleRecords.length)} adicionales en el inventario.</p>
@@ -725,7 +884,7 @@ function SpacePreviewPanel({
   );
 }
 
-function CommercialCapacityAnalysis({
+export function CommercialCapacityAnalysis({
   capacity,
   available,
   passengerTraffic,
@@ -733,6 +892,7 @@ function CommercialCapacityAnalysis({
   capacity: EtpCommercialCapacityData | null;
   available: number;
   passengerTraffic: PassengerTrafficRecord[];
+  presentation?: "full" | "narrative";
 }) {
   const years = [...new Set(passengerTraffic.map((record) => record.year))].sort((a, b) => a - b);
   const currentYear = years.at(-1) ?? null;
@@ -748,8 +908,8 @@ function CommercialCapacityAnalysis({
   const comparisonRecords = comparisonYear === null
     ? []
     : passengerTraffic.filter(
-        (record) => record.year === comparisonYear && record.status === "real" && completeMonths.has(record.month),
-      );
+      (record) => record.year === comparisonYear && record.status === "real" && completeMonths.has(record.month),
+    );
   const comparisonYearToDate = comparisonRecords.reduce((sum, record) => sum + record.passengers, 0);
   const yearToDateGrowth = comparisonYearToDate > 0
     ? ((currentYearToDate / comparisonYearToDate) - 1) * 100
@@ -773,87 +933,122 @@ function CommercialCapacityAnalysis({
   const comparisonYearTotal = comparisonYear === null
     ? null
     : passengerTraffic
-        .filter((record) => record.year === comparisonYear && record.status === "real")
-        .reduce((sum, record) => sum + record.passengers, 0);
+      .filter((record) => record.year === comparisonYear && record.status === "real")
+      .reduce((sum, record) => sum + record.passengers, 0);
   const actualUsagePreviousYear = commercialPassengerCapacity && comparisonYearTotal !== null
     ? (comparisonYearTotal / commercialPassengerCapacity) * 100
     : null;
   const capacityGap = commercialPassengerCapacity && projectedPassengers !== null ? Math.max(commercialPassengerCapacity - projectedPassengers, 0) : null;
   const capacityGapPercent = commercialPassengerCapacity && capacityGap !== null ? (capacityGap / commercialPassengerCapacity) * 100 : null;
   const surfaceCoverage = capacity ? (capacity.leasedCommercialArea / capacity.recommendedCommercialArea) * 100 : null;
-  const terminalDemand = capacity && projectedPassengers !== null ? (projectedPassengers / capacity.terminalPassengerCapacity) * 100 : null;
 
   return (
-    <section className="commercial-capacity-analysis" aria-label="Utilización de la capacidad comercial estimada">
+    <section className="commercial-capacity-unified-card" aria-label="Análisis Integral de Capacidad de Atención Comercial">
+      <header className="capacity-unified-header">
+        <div>
+          <span className="section-kicker">Lectura Ejecutiva Integral</span>
+          <h3>Capacidad de Atención Comercial vs. Tráfico de Pasajeros</h3>
+        </div>
+        <span className="commercial-capacity-status">En Meta · Holgura Suficiente</span>
+      </header>
+
+      <div className="capacity-unified-kpis">
+        <article className="capacity-kpi-block tone-green">
+          <span>Capacidad Comercial Anual</span>
+          <strong>{commercialPassengerCapacity === null ? "Sin dato" : `${passengerFormat.format(commercialPassengerCapacity)} Pax`}</strong>
+          <small>Soportada por {capacity ? `${numberFormat.format(capacity.leasedCommercialArea)} m² arrendados` : "superficie ETP"}</small>
+        </article>
+        <article className="capacity-kpi-block tone-navy">
+          <span>Demanda Proyectada {currentYear ?? ""}</span>
+          <strong>{projectedPassengers === null ? "Sin dato" : `${passengerFormat.format(projectedPassengers)} Pax`}</strong>
+          <small>{yearToDateGrowth !== null ? `${yearToDateGrowth >= 0 ? "+" : ""}${numberFormat.format(yearToDateGrowth)}% vs periodo anterior` : "Base acumulada"}</small>
+        </article>
+        <article className="capacity-kpi-block tone-gold">
+          <span>Utilización Comercial</span>
+          <strong>{projectedUsage === null ? "Sin dato" : `${numberFormat.format(projectedUsage)}%`}</strong>
+          <small>{actualUsagePreviousYear !== null ? `Cierre ${comparisonYear}: ${numberFormat.format(actualUsagePreviousYear)}%` : "Sobre capacidad actual"}</small>
+        </article>
+        <article className="capacity-kpi-block tone-blue">
+          <span>Holgura Disponible</span>
+          <strong>{capacityGap === null ? "Sin dato" : `${passengerFormat.format(capacityGap)} Pax`}</strong>
+          <small>{capacityGapPercent !== null ? `${numberFormat.format(capacityGapPercent)}% capacidad remanente` : "Margen sin saturación"}</small>
+        </article>
+      </div>
+
+      <div className="capacity-unified-narrative-box">
+        <div className="narrative-section diagnostic">
+          <div className="narrative-tag">Diagnóstico Integral</div>
+          <p>
+            {commercialPassengerCapacity === null || projectedPassengers === null
+              ? "Se requieren datos válidos de CAPACIDAD y PASAJEROS para construir la lectura ejecutiva."
+              : `La superficie comercial arrendada (${capacity ? `${numberFormat.format(capacity.leasedCommercialArea)} m²` : "en ETP"}) equivale a una capacidad comercial anual de ${passengerFormat.format(commercialPassengerCapacity)} pasajeros. Frente a una demanda proyectada de ${passengerFormat.format(projectedPassengers)} pasajeros para ${currentYear ?? "el año en curso"}, la utilización comercial se ubica en ${projectedUsage !== null ? `${numberFormat.format(projectedUsage)}%` : "—"}, manteniendo una holgura remanente de ${capacityGap !== null ? `${passengerFormat.format(capacityGap)} pasajeros` : "—"}. Esta holgura confirma que el aeropuerto cuenta con amplio margen operativo y que el reto actual no es la saturación física, sino la aceleración de la demanda comercial.`}
+          </p>
+        </div>
+
+        <div className="narrative-section action">
+          <div className="action-tag-row">
+            <div className="narrative-tag action-tag">Acción Estratégica Recomendada</div>
+            <span className="action-priority-pill">Prioridad Inmediata</span>
+          </div>
+          <p>
+            Mantener una expansión comercial selectiva: priorizar la activación y monetización de los {passengerFormat.format(available)} locales disponibles con mayor potencial de venta y aportación al Tenant Mix, antes de planear expansiones de superficie bruta generalizada.
+          </p>
+        </div>
+      </div>
+
       {capacity && (
-        <div className="commercial-capacity-foundation" aria-label="Datos base del cálculo de capacidad comercial">
-          <div><span>Capacidad de diseño ETP</span><strong>{passengerFormat.format(capacity.terminalPassengerCapacity)} Pax</strong><small>CAPACIDAD!A2</small></div>
-          <div><span>Coeficiente comercial</span><strong>{capacity.commercialAreaFactor.toFixed(6)}</strong><small>CAPACIDAD!A5</small></div>
-          <div><span>Superficie recomendada</span><strong>{numberFormat.format(capacity.recommendedCommercialArea)} m²</strong><small>A2 × A5</small></div>
-          <div><span>Superficie arrendada</span><strong>{numberFormat.format(capacity.leasedCommercialArea)} m²</strong><small>CAPACIDAD!C2</small></div>
+        <div className="capacity-unified-foundation">
+          <div className="foundation-box">
+            <span>Capacidad de Diseño ETP</span>
+            <strong>{passengerFormat.format(capacity.terminalPassengerCapacity)} Pax</strong>
+            <small>Hoja CAPACIDAD (A2)</small>
+          </div>
+          <div className="foundation-box">
+            <span>Coeficiente Comercial</span>
+            <strong>{capacity.commercialAreaFactor.toFixed(6)}</strong>
+            <small>Hoja CAPACIDAD (A5)</small>
+          </div>
+          <div className="foundation-box">
+            <span>Superficie Recomendada</span>
+            <strong>{numberFormat.format(capacity.recommendedCommercialArea)} m²</strong>
+            <small>Diseño × Coeficiente</small>
+          </div>
+          <div className="foundation-box">
+            <span>Superficie Arrendada</span>
+            <strong>{numberFormat.format(capacity.leasedCommercialArea)} m²</strong>
+            <small>Cobertura {surfaceCoverage !== null ? `${numberFormat.format(surfaceCoverage)}%` : "—"}</small>
+          </div>
         </div>
       )}
-      <div className="commercial-capacity-kpis">
-        <article>
-          <span>Cobertura de superficie</span>
-          <strong>{surfaceCoverage === null ? "Sin dato" : `${numberFormat.format(surfaceCoverage)}%`}</strong>
-          <small>{capacity ? `${numberFormat.format(capacity.leasedCommercialArea)} de ${numberFormat.format(capacity.recommendedCommercialArea)} m²` : "Requiere datos de CAPACIDAD"}</small>
-        </article>
-        <article>
-          <span>Utilización proyectada {currentYear ?? "actual"}</span>
-          <strong>{projectedUsage === null ? "Sin dato" : `${numberFormat.format(projectedUsage)}%`}</strong>
-          <small>{actualUsagePreviousYear === null || comparisonYear === null || projectedUsage === null ? "Requiere CAPACIDAD y PASAJEROS" : `${numberFormat.format(actualUsagePreviousYear)}% cierre real ${comparisonYear} · ${projectedUsage - actualUsagePreviousYear >= 0 ? "+" : ""}${numberFormat.format(projectedUsage - actualUsagePreviousYear)} pp`}</small>
-        </article>
-        <article>
-          <span>Holgura de capacidad</span>
-          <strong>{capacityGap === null ? "Sin dato" : `${passengerFormat.format(capacityGap)} Pax`}</strong>
-          <small>{capacityGapPercent === null ? "Requiere capacidad comercial" : `${numberFormat.format(capacityGapPercent)}% de capacidad remanente`}</small>
-        </article>
-        <article>
-          <span>Crecimiento de pasajeros</span>
-          <strong>{yearToDateGrowth === null ? "Sin dato" : `${yearToDateGrowth >= 0 ? "+" : ""}${numberFormat.format(yearToDateGrowth)}%`}</strong>
-          <small>{currentYear === null || comparisonYear === null || !currentRealRecords.length ? "Requiere meses completos comparables" : `${passengerFormat.format(currentYearToDate)} vs. ${passengerFormat.format(comparisonYearToDate)} Pax · enero–${lastCompleteMonth.monthName.toLocaleLowerCase("es-MX")}`}</small>
-        </article>
-      </div>
 
-      <div className="commercial-capacity-detail">
-        <article className="commercial-capacity-history">
-          <header>
-            <div><span className="section-kicker">Evolución {years.length ? `${years[0]}–${currentYear}` : "sin datos"}</span><h3>Tráfico frente a capacidad comercial actual</h3></div>
-            <small>Base actual</small>
-          </header>
-          <div className="commercial-capacity-bars">
-            {trafficSeries.map((item) => {
-              const usage = commercialPassengerCapacity ? (item.passengers / commercialPassengerCapacity) * 100 : null;
-              return (
-                <div className={item.projected ? "projected" : ""} key={item.year}>
-                  <span>{item.year}{item.projected ? "*" : ""}</span>
-                  <i aria-label={usage === null ? `${item.year}: sin capacidad de referencia` : `${item.year}: ${numberFormat.format(usage)}% de utilización`}>
-                    <em style={{ width: `${Math.min(usage ?? 0, 100)}%` }} />
-                  </i>
-                  <strong>{usage === null ? "—" : `${numberFormat.format(usage)}%`}</strong>
-                  <small>{passengerFormat.format(item.passengers)} Pax</small>
-                </div>
-              );
-            })}
-            {!trafficSeries.length && <p className="commercial-capacity-empty">Carga la hoja PASAJEROS para generar la serie histórica.</p>}
+      <article className="capacity-unified-history">
+        <header>
+          <div>
+            <span className="section-kicker">Serie Histórica y Proyección {years.length ? `${years[0]}–${currentYear}` : ""}</span>
+            <h4>Tráfico anual de pasajeros frente a la capacidad comercial instalada</h4>
           </div>
-        </article>
-
-        <aside className="commercial-capacity-insight">
-          <span className="section-kicker">Lectura directiva</span>
-          <h3>Capacidad suficiente para una estrategia selectiva</h3>
-          <p>
-            {projectedPassengers === null
-              ? "La lectura de demanda está pendiente hasta cargar registros mensuales válidos en la hoja PASAJEROS."
-              : `Con una demanda anualizada de ${passengerFormat.format(projectedPassengers)} pasajeros, equivalente al ${terminalDemand === null ? "porcentaje pendiente" : `${numberFormat.format(terminalDemand)}%`} de la capacidad de diseño del ETP, la superficie actualmente arrendada presenta ${projectedUsage === null ? "una utilización pendiente de cálculo" : `una utilización comercial de ${numberFormat.format(projectedUsage)}% y una holgura teórica de ${passengerFormat.format(capacityGap!)} pasajeros`}. La comercialización de los ${passengerFormat.format(available)} locales disponibles puede priorizar calidad del Tenant Mix, diversificación y rentabilidad, validando horas pico y filas antes de concluir que no existen cuellos de botella.`}
-          </p>
-        </aside>
-      </div>
-
-      <p className="commercial-capacity-method">
-        * {currentYear === null || projectedPassengers === null ? "Proyección pendiente de la hoja PASAJEROS." : `Proyección ${currentYear} anualizada con ${currentRealRecords.length} meses completos: ${passengerFormat.format(currentYearToDate)} pasajeros acumulados.${partialMonths.length ? ` Se excluye ${partialMonths.map((record) => record.monthName.toLocaleLowerCase("es-MX")).join(", ")} por estar marcado como parcial.` : ""}`} Los años históricos se comparan con la superficie arrendada actual; el indicador no sustituye una evaluación operativa por hora pico.
-      </p>
+          <small>Base actual de datos</small>
+        </header>
+        <div className="commercial-capacity-bars">
+          {trafficSeries.map((item) => {
+            const usage = commercialPassengerCapacity ? (item.passengers / commercialPassengerCapacity) * 100 : null;
+            return (
+              <div className={item.projected ? "projected" : ""} key={item.year}>
+                <span>{item.year}{item.projected ? " (proyección)" : ""}</span>
+                <i aria-label={usage === null ? `${item.year}: sin capacidad de referencia` : `${item.year}: ${numberFormat.format(usage)}% de utilización`}>
+                  <em style={{ width: `${Math.min(usage ?? 0, 100)}%` }} />
+                </i>
+                <strong>{usage === null ? "—" : `${numberFormat.format(usage)}%`}</strong>
+                <small>{passengerFormat.format(item.passengers)} Pax{item.projected ? " proyectados" : ""}</small>
+              </div>
+            );
+          })}
+          {!trafficSeries.length && <p className="commercial-capacity-empty">Carga la hoja PASAJEROS para generar la serie histórica.</p>}
+        </div>
+        <p className="commercial-capacity-method">
+          * {currentYear === null || projectedPassengers === null ? "Proyección pendiente de la hoja PASAJEROS." : `El valor ${currentYear} es una proyección anualizada con ${currentRealRecords.length} meses completos (${passengerFormat.format(currentYearToDate)} pasajeros acumulados).`} Los años históricos se contrastan contra la capacidad comercial contratada actual; el indicador no sustituye una evaluación operativa por hora pico.
+        </p>
+      </article>
     </section>
   );
 }
@@ -912,9 +1107,9 @@ function buildVacancyInsight(records: LocalRecord[], recordLabel: string): Vacan
   const medianVacancies = vacantMedian === null
     ? []
     : [...vacantRecords]
-        .filter((record) => record.metraje !== null && record.metraje > 0)
-        .sort((a, b) => Math.abs((a.metraje ?? 0) - vacantMedian) - Math.abs((b.metraje ?? 0) - vacantMedian))
-        .slice(0, 6);
+      .filter((record) => record.metraje !== null && record.metraje > 0)
+      .sort((a, b) => Math.abs((a.metraje ?? 0) - vacantMedian) - Math.abs((b.metraje ?? 0) - vacantMedian))
+      .slice(0, 6);
   const leadingZoneVacancies = leadingZone
     ? vacantRecords.filter((record) => (String(record.lado || "Sin dato").trim() || "Sin dato") === leadingZone.label)
     : [];
@@ -1054,18 +1249,18 @@ export default function SummaryDashboard({
   locationName,
   recordLabel,
   etpCommercialCapacity,
-  passengerTraffic,
   onOpenDirectory,
   onOpenBrand,
+  onOpenAnalysis,
 }: {
   records: LocalRecord[];
   locationId: string;
   locationName: string;
   recordLabel: string;
   etpCommercialCapacity: EtpCommercialCapacityData | null;
-  passengerTraffic: PassengerTrafficRecord[];
   onOpenDirectory: () => void;
   onOpenBrand: (brand: string) => void;
+  onOpenAnalysis: (indicator: AnalysisTarget) => void;
 }) {
   const capitalizedLabel = `${recordLabel.charAt(0).toUpperCase()}${recordLabel.slice(1)}`;
   const totalArea = records.reduce((sum, record) => sum + (record.metraje ?? 0), 0);
@@ -1083,7 +1278,6 @@ export default function SummaryDashboard({
   const moduleInsight = showModules ? buildModuleInsight(records) : null;
   const [selectedVacancyFact, setSelectedVacancyFact] = useState<string | null>(null);
   const [vacancyAnalysisOpen, setVacancyAnalysisOpen] = useState(false);
-  const [capacityAnalysisOpen, setCapacityAnalysisOpen] = useState(false);
   const selectedVacancyPreview = vacancyInsight?.facts.find((fact) => fact.label === selectedVacancyFact) ?? null;
 
   const availability = [...new Set(records.map((record) => record.lado || "Sin dato"))]
@@ -1111,42 +1305,37 @@ export default function SummaryDashboard({
 
       <div className="executive-kpis">
         <ExecutiveKpi label={`Total ${recordLabel}`} value={numberFormat.format(records.length)} />
-        <ExecutiveKpi label="Disponibles" value={numberFormat.format(available)} />
+        <ExecutiveKpi label="Disponibles" value={numberFormat.format(available)} onOpenAnalysis={() => onOpenAnalysis("vacancy")} />
         <ExecutiveKpi label="Ocupación" value={`${numberFormat.format(occupancy * 100)}%`} />
         <ExecutiveKpi label="M² registrados" value={numberFormat.format(totalArea)} />
         <ExecutiveKpi label="Operando" value={numberFormat.format(operating)} />
       </div>
 
       {locationId === "etp" && (
-        <>
-          <article className="commercial-capacity-card" aria-label="Capacidad de Atención Comercial del ETP">
-            <div>
-              <div className="commercial-capacity-heading">
-                <div><span className="section-kicker">Indicador de atención</span><h2>Capacidad de Atención Comercial</h2></div>
-                <AnalysisToggle open={capacityAnalysisOpen} label="Capacidad de Atención Comercial" onClick={() => setCapacityAnalysisOpen((current) => !current)} />
-              </div>
-              <p>Capacidad equivalente calculada con la superficie arrendada, el coeficiente comercial y la capacidad de diseño registrados en el Excel.</p>
-            </div>
-            <div className="commercial-capacity-value">
-              <strong>{etpCommercialCapacity === null ? "Sin dato" : passengerFormat.format(etpCommercialCapacity.commercialPassengerCapacity)}</strong>
-              <span>Pax.</span>
-              <small>Hoja CAPACIDAD · A2, C2 y A5 · equivalente a D2</small>
-            </div>
-          </article>
-          {capacityAnalysisOpen && <CommercialCapacityAnalysis capacity={etpCommercialCapacity} available={available} passengerTraffic={passengerTraffic} />}
-        </>
+        <article className="commercial-capacity-card" aria-label="Capacidad de Atención Comercial del ETP">
+          <div>
+            <div className="commercial-capacity-heading"><div><span className="section-kicker">Indicador de atención</span><h2>Capacidad de Atención Comercial</h2></div></div>
+            <p>Capacidad equivalente calculada con la superficie arrendada, el coeficiente comercial y la capacidad de diseño registrados en el Excel.</p>
+            <button className="indicator-analysis-link" type="button" onClick={() => onOpenAnalysis("capacity")}><span><small>Análisis disponible</small><strong>Lectura ejecutiva y acción recomendada</strong></span><b>Ver análisis →</b></button>
+          </div>
+          <div className="commercial-capacity-value">
+            <strong>{etpCommercialCapacity === null ? "Sin dato" : passengerFormat.format(etpCommercialCapacity.commercialPassengerCapacity)}</strong>
+            <span>Pax.</span>
+            <small>Hoja CAPACIDAD · A2, C2 y A5 · equivalente a D2</small>
+          </div>
+        </article>
       )}
 
-      <LocationIndicators locationId={locationId} records={records} onOpenBrand={onOpenBrand} />
+      <LocationIndicators locationId={locationId} records={records} onOpenBrand={onOpenBrand} onOpenAnalysis={onOpenAnalysis} />
 
       <div className="executive-grid">
         <StatusOverview title={statusTitle} records={records} recordLabel={recordLabel} />
-        <DonutChart title="Giro comercial" kicker="Mezcla de oferta" data={countBy(records, "giroOperativo")} center={recordLabel} analysis={{ records, field: "giroOperativo", kind: "giro" }} />
+        <DonutChart title="Giro comercial" kicker="Mezcla de oferta" data={countBy(records, "giroOperativo")} center={recordLabel} analysis={{ records, field: "giroOperativo", kind: "giro" }} onOpenFullAnalysis={() => onOpenAnalysis("mix")} />
         {showZone && <DonutChart title="Distribución por zona" kicker="Implantación territorial" data={countBy(records, "lado")} center={recordLabel} colors={["#405364", "#ac182c", "#00886f"]} analysis={{ records, field: "lado", kind: "zona" }} />}
-        {showLevels && <VerticalBars title={`${capitalizedLabel} por nivel`} kicker="Implantación vertical" data={levels} color="#09212e" totalLabel={recordLabel} analysis={{ records, field: "nivel", kind: "nivel" }} />}
-        {showAreaType && <DonutChart title="Tipo de área" kicker="Ubicación operativa" data={countBy(records, "area")} center={recordLabel} colors={["#00886f", "#405364", "#ac182c"]} analysis={{ records, field: "area", kind: "area" }} />}
+        {showLevels && <VerticalBars title={`${capitalizedLabel} por nivel`} kicker="Implantación vertical" data={levels} color="#09212e" totalLabel={recordLabel} analysis={{ records, field: "nivel", kind: "nivel" }} onOpenFullAnalysis={() => onOpenAnalysis("levels")} />}
+        {showAreaType && <DonutChart title="Tipo de área" kicker="Ubicación operativa" data={countBy(records, "area")} center={recordLabel} colors={["#00886f", "#405364", "#ac182c"]} analysis={{ records, field: "area", kind: "area" }} onOpenFullAnalysis={() => onOpenAnalysis("area_type")} />}
         {locationId === "etp" && <DonutChart title="Tipo de local" kicker="Formato comercial" data={countBy(records, "areaComercial")} center={recordLabel} colors={["#ac182c", "#00886f", "#405364", "#b56d16", "#0b957e", "#87929c"]} wide />}
-        {showModules && <HorizontalBars title={`${capitalizedLabel} por módulo`} kicker="Distribución física" data={modules} totalLabel={recordLabel} analysis={moduleInsight} />}
+        {showModules && <HorizontalBars title={`${capitalizedLabel} por módulo`} kicker="Distribución física" data={modules} totalLabel={recordLabel} analysis={moduleInsight} onOpenFullAnalysis={() => onOpenAnalysis("modules")} />}
       </div>
 
       <article className="availability-card">
@@ -1154,6 +1343,7 @@ export default function SummaryDashboard({
           <div><span className="section-kicker">Disponibilidad por zona</span><h2>Espacios vacantes</h2></div>
           <div className="availability-heading-actions">
             <strong>{numberFormat.format(available)} disponibles</strong>
+            <AnalysisRouteLink label="Espacios vacantes" onClick={() => onOpenAnalysis("vacancy")} />
             {vacancyInsight && <AnalysisToggle open={vacancyAnalysisOpen} label="Espacios vacantes" onClick={() => setVacancyAnalysisOpen((current) => !current)} />}
           </div>
         </div>

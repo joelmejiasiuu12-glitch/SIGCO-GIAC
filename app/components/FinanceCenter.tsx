@@ -3,10 +3,12 @@
 import { useMemo, useState } from "react";
 import type { LocalRecord } from "../types";
 
+export type FinanceSubTab = "billed_vs_recovered" | "overdue_debt";
+
 const currencyFormat = new Intl.NumberFormat("es-MX", {
   style: "currency",
   currency: "MXN",
-  maximumFractionDigits: 0,
+  maximumFractionDigits: 2,
 });
 const compactCurrencyFormat = new Intl.NumberFormat("es-MX", {
   style: "currency",
@@ -15,358 +17,481 @@ const compactCurrencyFormat = new Intl.NumberFormat("es-MX", {
   maximumFractionDigits: 1,
 });
 const numberFormat = new Intl.NumberFormat("es-MX", { maximumFractionDigits: 1 });
-const percentFormat = new Intl.NumberFormat("es-MX", { style: "percent", maximumFractionDigits: 1 });
+const integerFormat = new Intl.NumberFormat("es-MX", { maximumFractionDigits: 0 });
 
-type ParticipationFilter = "all" | "with" | "without";
-const FINANCE_PAGE_SIZE = 10;
-
-type FinancialContract = {
-  key: string;
-  contractNumber: string | null;
-  brand: string;
-  locationName: string;
-  monthlyRent: number;
-  hasMonthlyRent: boolean;
-  annualProjection: number;
-  missingRenewalDates: number;
-  costPerM2: number | null;
-  participationRate: number | null;
-  participationNotes: string | null;
-  area: number;
-  locals: LocalRecord[];
+type MonthlyBilledRecord = {
+  monthId: string;
+  monthName: string;
+  billed: number;
+  recovered: number;
+  recoveredLabel: string;
+  statusBadge: "superior" | "equivalent" | "superavit" | "abonado";
+  statusText: string;
+  statusTone: "green" | "amber" | "teal";
+  percentage: number;
 };
 
-function normalized(value: unknown) {
-  return String(value ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLocaleLowerCase("es-MX");
-}
+const monthlyBilledData: MonthlyBilledRecord[] = [
+  {
+    monthId: "enero",
+    monthName: "Enero",
+    billed: 30800770.52,
+    recovered: 30973989.73,
+    recoveredLabel: "RECUPERADO",
+    statusBadge: "superior",
+    statusText: "Recuperación superior a la facturación mensual.",
+    statusTone: "green",
+    percentage: 100.56,
+  },
+  {
+    monthId: "febrero",
+    monthName: "Febrero",
+    billed: 31402687.67,
+    recovered: 29200972.03,
+    recoveredLabel: "RECUPERADO",
+    statusBadge: "equivalent",
+    statusText: "Recuperación equivalente al 93% de lo facturado.",
+    statusTone: "amber",
+    percentage: 92.99,
+  },
+  {
+    monthId: "marzo",
+    monthName: "Marzo",
+    billed: 29545291.9,
+    recovered: 30332028.28,
+    recoveredLabel: "RECUPERADO",
+    statusBadge: "superior",
+    statusText: "Recuperación superior a la facturación mensual.",
+    statusTone: "green",
+    percentage: 102.66,
+  },
+  {
+    monthId: "abril",
+    monthName: "Abril",
+    billed: 32084407.94,
+    recovered: 30179538.59,
+    recoveredLabel: "RECUPERADO",
+    statusBadge: "equivalent",
+    statusText: "Recuperación equivalente al 94% de lo facturado.",
+    statusTone: "amber",
+    percentage: 94.06,
+  },
+  {
+    monthId: "mayo",
+    monthName: "Mayo",
+    billed: 28865083.92,
+    recovered: 31881600.07,
+    recoveredLabel: "RECUPERADO",
+    statusBadge: "superavit",
+    statusText: "Recuperación superior al 110% respecto a la facturación del mes.",
+    statusTone: "teal",
+    percentage: 110.45,
+  },
+  {
+    monthId: "junio",
+    monthName: "Junio",
+    billed: 31760424.05,
+    recovered: 31706080.4,
+    recoveredLabel: "ABONADO",
+    statusBadge: "abonado",
+    statusText: "Monto abonado ligeramente inferior a lo facturado.",
+    statusTone: "amber",
+    percentage: 99.83,
+  },
+];
 
-function firstText(records: LocalRecord[], key: keyof LocalRecord) {
-  const value = records.map((record) => record[key]).find((candidate) => String(candidate ?? "").trim());
-  return value === null || value === undefined ? null : String(value).trim();
-}
+type BiweeklyCarteraCut = {
+  dateLabel: string;
+  totalAmount: number;
+  clientCount: number;
+};
 
-function isCurrentFinancialRecord(record: LocalRecord) {
-  const stage = record.contractStage;
-  const status = normalized(record.contractStatus);
-  const isTerminal = stage === "cancelled" || stage === "expired" || stage === "agreements"
-    || status.includes("cancel") || status.includes("fenec") || status.includes("vencid")
-    || status.includes("concluid") || status.includes("terminad") || status.includes("convenio");
-  const hasFinancialData = record.monthlyRent !== null || record.costPerM2 !== null || record.participationRate !== null;
-  return !isTerminal && hasFinancialData;
-}
+const biweeklyCuts: BiweeklyCarteraCut[] = [
+  { dateLabel: "14 de mayo", totalAmount: 1035878.2, clientCount: 22 },
+  { dateLabel: "31 de mayo", totalAmount: 1094872.65, clientCount: 15 },
+  { dateLabel: "23 de junio", totalAmount: 1225671.18, clientCount: 11 },
+  { dateLabel: "6 de julio", totalAmount: 1106381.24, clientCount: 10 },
+  { dateLabel: "20 de julio", totalAmount: 931333.98, clientCount: 11 },
+  { dateLabel: "27 de julio", totalAmount: 858286.68, clientCount: 10 },
+  { dateLabel: "10 de agosto", totalAmount: 646029.34, clientCount: 12 },
+];
 
-function isOperating(record: LocalRecord) {
-  return normalized(record.estatus) === "en funcionamiento";
-}
+type DebtorRecord = {
+  id: string;
+  name: string;
+  brand: string;
+  amount: number;
+};
 
-function projectedMonths(renewalDate: string | null) {
-  if (!renewalDate) return null;
-  const endDate = new Date(`${renewalDate}T23:59:59`);
-  if (Number.isNaN(endDate.getTime())) return null;
-  const remainingDays = (endDate.getTime() - Date.now()) / 86_400_000;
-  return Math.min(12, Math.max(0, remainingDays / 30.4375));
-}
+const topDebtorsCorteAgosto: DebtorRecord[] = [
+  { id: "1", name: "Orlando Hernández Rodríguez", brand: "Churrería Porfirio", amount: 233864.24 },
+  { id: "2", name: "Juan Fernando Miranda Martínez", brand: "Tacos de Guisado", amount: 103440.09 },
+  { id: "3", name: "Juan Fernando Miranda Martínez", brand: "Local Comercial", amount: 91406.5 },
+  { id: "4", name: "María Elena Jurado", brand: "María Elena Jurado", amount: 49971.68 },
+  { id: "5", name: "Grupo Aduanal Prida", brand: "Grupo Aduanal Prida", amount: 36085.52 },
+  { id: "6", name: "Vacation Travel Advisory", brand: "Vacation Travel Advisory", amount: 31873.17 },
+  { id: "7", name: "José Manuel Velázquez", brand: "José Manuel Velázquez", amount: 30183.35 },
+  { id: "8", name: "Corpo Substore", brand: "Corpo Substore", amount: 26030.31 },
+  { id: "9", name: "Banco Mercantil del Norte", brand: "Banorte", amount: 20265.26 },
+  { id: "10", name: "Feroly", brand: "Feroly", amount: 9144.34 },
+  { id: "11", name: "Ximena Aguilar", brand: "Ximena Aguilar", amount: 8084.9 },
+  { id: "12", name: "BBVA México", brand: "BBVA México", amount: 5679.98 },
+];
 
-function buildFinancialContracts(records: LocalRecord[]) {
-  const groups = new Map<string, LocalRecord[]>();
-  records.filter(isCurrentFinancialRecord).forEach((record) => {
-    const locationKey = record.contractLocationId ?? record.contractLocationName ?? record.contractSourceSheet ?? "sin-zona";
-    const key = record.contractNumber
-      ? `contract:${locationKey}:${normalized(record.contractNumber)}`
-      : `record:${locationKey}:${record.id}`;
-    groups.set(key, [...(groups.get(key) ?? []), record]);
-  });
+type UncollectibleAccount = {
+  name: string;
+  contractCode: string;
+  amount: number;
+};
 
-  return [...groups.entries()].map(([key, locals]) => {
-    const rents = locals.map((record) => record.monthlyRent).filter((value): value is number => value !== null);
-    const pricedArea = locals.filter((record) => record.costPerM2 !== null);
-    const weightedArea = pricedArea.reduce((total, record) => total + (record.metraje ?? 0), 0);
-    const costPerM2 = pricedArea.length
-      ? weightedArea > 0
-        ? pricedArea.reduce((total, record) => total + (record.costPerM2 ?? 0) * (record.metraje ?? 0), 0) / weightedArea
-        : pricedArea.reduce((total, record) => total + (record.costPerM2 ?? 0), 0) / pricedArea.length
-      : null;
-    const monthlyRent = rents.reduce((total, value) => total + value, 0);
-    const operatingRentRecords = locals.filter((record) => isOperating(record) && record.monthlyRent !== null);
-    const annualProjection = operatingRentRecords.reduce((total, record) => {
-      const months = projectedMonths(record.renewalDate);
-      return total + (months === null ? 0 : (record.monthlyRent ?? 0) * months);
-    }, 0);
+const uncollectibleAccounts: UncollectibleAccount[] = [
+  { name: "Hugo Ivan Flores Guerrero", contractCode: "AIFA-DCS-SSC-GSC-117-2024", amount: 16469.39 },
+  { name: "King Oasis", contractCode: "AIFA-DCS-SSC-GSC-039-2024", amount: 772304.68 },
+  { name: "Saoko Food And Drinks", contractCode: "AIFA-DCS-SSC-GSC-084-2024", amount: 30640.24 },
+];
+
+export default function FinanceCenter({
+  subTab = "billed_vs_recovered",
+  onChangeSubTab,
+}: {
+  records?: LocalRecord[];
+  scopeLabel?: string;
+  subTab?: FinanceSubTab;
+  onUpload?: () => void;
+  onChangeSubTab?: (subTab: FinanceSubTab) => void;
+}) {
+  const [activeSubTab, setActiveSubTab] = useState<FinanceSubTab>(subTab);
+
+  const currentTab = onChangeSubTab ? subTab : activeSubTab;
+  const setTab = (tab: FinanceSubTab) => {
+    setActiveSubTab(tab);
+    if (onChangeSubTab) onChangeSubTab(tab);
+  };
+
+  const billedTotals = useMemo(() => {
+    const totalBilled = monthlyBilledData.reduce((sum, item) => sum + item.billed, 0);
+    const totalRecovered = monthlyBilledData.reduce((sum, item) => sum + item.recovered, 0);
+    const netDifference = totalRecovered - totalBilled;
+    const globalEfficiency = totalBilled > 0 ? (totalRecovered / totalBilled) * 100 : 0;
+    const averageMonthlyBilled = monthlyBilledData.length > 0 ? totalBilled / monthlyBilledData.length : 0;
+
     return {
-      key,
-      contractNumber: firstText(locals, "contractNumber"),
-      brand: firstText(locals, "marca") ?? "Sin marca asignada",
-      locationName: firstText(locals, "contractLocationName") ?? firstText(locals, "contractSourceSheet") ?? "Zona no indicada",
-      monthlyRent,
-      hasMonthlyRent: rents.length > 0,
-      annualProjection,
-      missingRenewalDates: operatingRentRecords.filter((record) => projectedMonths(record.renewalDate) === null).length,
-      costPerM2,
-      participationRate: locals.map((record) => record.participationRate).find((value) => value !== null) ?? null,
-      participationNotes: firstText(locals, "participationNotes"),
-      area: locals.reduce((total, record) => total + (record.metraje ?? 0), 0),
-      locals,
-    } satisfies FinancialContract;
-  }).sort((a, b) => b.monthlyRent - a.monthlyRent || a.brand.localeCompare(b.brand, "es-MX"));
-}
-
-function FinancialKpi({ label, value, note, tone }: { label: string; value: string; note: string; tone: "wine" | "green" | "navy" | "gold" | "blue" }) {
-  return (
-    <article className={`finance-kpi finance-kpi-${tone}`}>
-      <span>{label}</span>
-      <strong>{value}</strong>
-      <small>{note}</small>
-    </article>
-  );
-}
-
-function HorizontalMoneyChart({ title, kicker, data, emptyText }: { title: string; kicker: string; data: [string, number][]; emptyText: string }) {
-  const visible = data.filter(([, value]) => value > 0).slice(0, 7);
-  const maximum = Math.max(...visible.map(([, value]) => value), 1);
-  return (
-    <article className="finance-card finance-chart-card">
-      <div className="finance-card-heading"><div><span>{kicker}</span><h3>{title}</h3></div><small>MXN mensuales</small></div>
-      {visible.length ? (
-        <div className="finance-money-bars">
-          {visible.map(([label, value]) => (
-            <div className="finance-money-row" key={label}>
-              <span title={label}>{label}</span>
-              <div><i style={{ width: `${Math.max((value / maximum) * 100, 3)}%` }} /></div>
-              <strong>{compactCurrencyFormat.format(value)}</strong>
-            </div>
-          ))}
-        </div>
-      ) : <p className="finance-card-empty">{emptyText}</p>}
-    </article>
-  );
-}
-
-export default function FinanceCenter({ records, scopeLabel, onUpload }: { records: LocalRecord[]; scopeLabel: string; onUpload: () => void }) {
-  const contracts = useMemo(() => buildFinancialContracts(records), [records]);
-  const [search, setSearch] = useState("");
-  const [participation, setParticipation] = useState<ParticipationFilter>("all");
-  const [expandedKey, setExpandedKey] = useState<string | null>(null);
-  const [page, setPage] = useState(1);
-  const [referenceTime] = useState(Date.now);
-
-  const filteredContracts = useMemo(() => {
-    const query = normalized(search.trim());
-    return contracts.filter((contract) => {
-      const matchesSearch = !query || [contract.contractNumber, contract.brand, contract.locationName, ...contract.locals.map((local) => local.nomenclatura)]
-        .some((value) => normalized(value).includes(query));
-      const matchesParticipation = participation === "all"
-        || (participation === "with" ? contract.participationRate !== null : contract.participationRate === null);
-      return matchesSearch && matchesParticipation;
-    });
-  }, [contracts, participation, search]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredContracts.length / FINANCE_PAGE_SIZE));
-  const effectivePage = Math.min(page, totalPages);
-  const pageContracts = filteredContracts.slice((effectivePage - 1) * FINANCE_PAGE_SIZE, effectivePage * FINANCE_PAGE_SIZE);
-
-  const metrics = useMemo(() => {
-    const selectedRecords = filteredContracts.flatMap((contract) => contract.locals);
-    const rentRecords = selectedRecords.filter((record) => isOperating(record) && record.monthlyRent !== null);
-    const pricedContracts = filteredContracts.filter((contract) => contract.costPerM2 !== null);
-    const monthlyRent = rentRecords.reduce((total, record) => total + (record.monthlyRent ?? 0), 0);
-    const totalPricedArea = pricedContracts.reduce((total, contract) => total + contract.area, 0);
-    const averageCostPerM2 = pricedContracts.length
-      ? totalPricedArea > 0
-        ? pricedContracts.reduce((total, contract) => total + (contract.costPerM2 ?? 0) * contract.area, 0) / totalPricedArea
-        : pricedContracts.reduce((total, contract) => total + (contract.costPerM2 ?? 0), 0) / pricedContracts.length
-      : 0;
-    return {
-      monthlyRent,
-      annualProjection: filteredContracts.reduce((total, contract) => total + contract.annualProjection, 0),
-      averageRent: rentRecords.length ? monthlyRent / rentRecords.length : 0,
-      averageCostPerM2,
-      rentRecords: rentRecords.length,
-      missingRenewalDates: filteredContracts.reduce((total, contract) => total + contract.missingRenewalDates, 0),
-      participationRecords: selectedRecords.filter((record) => record.participationRate !== null).length,
+      totalBilled,
+      totalRecovered,
+      netDifference,
+      globalEfficiency,
+      averageMonthlyBilled,
     };
-  }, [filteredContracts]);
+  }, []);
 
-  const rentByLocation = useMemo(() => {
-    const totals = new Map<string, number>();
-    filteredContracts.forEach((contract) => {
-      const operatingRent = contract.locals.filter((record) => isOperating(record)).reduce((total, record) => total + (record.monthlyRent ?? 0), 0);
-      totals.set(contract.locationName, (totals.get(contract.locationName) ?? 0) + operatingRent);
-    });
-    return [...totals.entries()].sort((a, b) => b[1] - a[1]);
-  }, [filteredContracts]);
+  const overdueTotals = useMemo(() => {
+    const currentCartera = biweeklyCuts[biweeklyCuts.length - 1]?.totalAmount ?? 0;
+    const initialCartera = biweeklyCuts[0]?.totalAmount ?? 0;
+    const maxCartera = Math.max(...biweeklyCuts.map((c) => c.totalAmount));
+    const reductionAmount = initialCartera - currentCartera;
+    const reductionPct = initialCartera > 0 ? (reductionAmount / initialCartera) * 100 : 0;
+    const totalUncollectible = uncollectibleAccounts.reduce((sum, item) => sum + item.amount, 0);
 
-  const topContracts = filteredContracts.map((contract) => [
-    contract.brand,
-    contract.locals.filter((record) => isOperating(record)).reduce((total, record) => total + (record.monthlyRent ?? 0), 0),
-  ] as [string, number]).sort((a, b) => b[1] - a[1]).slice(0, 7);
-
-  const costRanking = [...filteredContracts]
-    .filter((contract): contract is FinancialContract & { costPerM2: number } => contract.costPerM2 !== null)
-    .sort((a, b) => b.costPerM2 - a.costPerM2)
-    .slice(0, 7);
-  const maxCost = Math.max(...costRanking.map((contract) => contract.costPerM2), 1);
-
-  const rentRanges = [
-    { label: "Hasta $25 mil", minimum: 0, maximum: 25_000 },
-    { label: "$25–50 mil", minimum: 25_000, maximum: 50_000 },
-    { label: "$50–100 mil", minimum: 50_000, maximum: 100_000 },
-    { label: "$100–250 mil", minimum: 100_000, maximum: 250_000 },
-    { label: "Más de $250 mil", minimum: 250_000, maximum: Number.POSITIVE_INFINITY },
-  ].map((range) => ({
-    ...range,
-    count: filteredContracts.filter((contract) => {
-      const operatingRent = contract.locals.filter((record) => isOperating(record)).reduce((total, record) => total + (record.monthlyRent ?? 0), 0);
-      return operatingRent > range.minimum && operatingRent <= range.maximum;
-    }).length,
-  }));
-  const maxRangeCount = Math.max(...rentRanges.map((range) => range.count), 1);
-
-  const concentration = useMemo(() => {
-    const contractRents = filteredContracts
-      .map((contract) => ({
-        label: contract.brand,
-        value: contract.locals.filter((record) => isOperating(record)).reduce((total, record) => total + (record.monthlyRent ?? 0), 0),
-      }))
-      .filter((item) => item.value > 0)
-      .sort((a, b) => b.value - a.value);
-    const total = contractRents.reduce((sum, item) => sum + item.value, 0);
-    const topFive = contractRents.slice(0, 5).reduce((sum, item) => sum + item.value, 0);
     return {
-      total,
-      topFive,
-      remaining: Math.max(0, total - topFive),
-      percentage: total ? topFive / total : 0,
-      leaders: contractRents.slice(0, 3),
+      currentCartera,
+      initialCartera,
+      maxCartera,
+      reductionAmount,
+      reductionPct,
+      totalUncollectible,
     };
-  }, [filteredContracts]);
+  }, []);
 
-  const renewalExposure = useMemo(() => {
-    const buckets = [
-      { label: "Vencidos", minimum: Number.NEGATIVE_INFINITY, maximum: 0, value: 0, count: 0 },
-      { label: "Próximos 90 días", minimum: 0, maximum: 90, value: 0, count: 0 },
-      { label: "91–180 días", minimum: 90, maximum: 180, value: 0, count: 0 },
-      { label: "181–365 días", minimum: 180, maximum: 365, value: 0, count: 0 },
-      { label: "Más de un año", minimum: 365, maximum: Number.POSITIVE_INFINITY, value: 0, count: 0 },
-    ];
-    let withoutDate = 0;
-    filteredContracts.forEach((contract) => {
-      const operatingRent = contract.locals.filter((record) => isOperating(record)).reduce((total, record) => total + (record.monthlyRent ?? 0), 0);
-      if (!operatingRent) return;
-      const renewalTimes = contract.locals
-        .map((record) => record.renewalDate ? new Date(`${record.renewalDate}T23:59:59`).getTime() : Number.NaN)
-        .filter((time) => !Number.isNaN(time));
-      if (!renewalTimes.length) {
-        withoutDate += 1;
-        return;
-      }
-      const remainingDays = (Math.min(...renewalTimes) - referenceTime) / 86_400_000;
-      const bucket = buckets.find((item) => remainingDays > item.minimum && remainingDays <= item.maximum);
-      if (bucket) {
-        bucket.value += operatingRent;
-        bucket.count += 1;
-      }
-    });
-    return { buckets, withoutDate };
-  }, [filteredContracts, referenceTime]);
-  const maxRenewalExposure = Math.max(...renewalExposure.buckets.map((bucket) => bucket.value), 1);
-
-  if (!contracts.length) {
-    return (
-      <section className="finance-center finance-empty-state" aria-label="Finanzas">
-        <span className="finance-empty-mark">MXN</span>
-        <h2>No hay información financiera disponible</h2>
-        <p>Carga el libro consolidado con renta mensual, porcentaje de participación o costo por metro cuadrado para generar el tablero.</p>
-        <button type="button" className="primary-button" onClick={onUpload}>Cargar Excel local</button>
-      </section>
-    );
-  }
+  const isPositiveDelta = billedTotals.netDifference >= 0;
 
   return (
-    <section className="finance-center" aria-label="Tablero financiero">
-      <div className="finance-toolbar">
-        <div>
-          <span className="section-kicker">Etapa 1 · Condiciones económicas vigentes</span>
-          <h2>Resumen financiero</h2>
-          <small className="finance-scope-name">{scopeLabel}</small>
-        </div>
-        <div className="finance-filters">
-          <label><span>Buscar contrato o marca</span><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); setExpandedKey(null); }} placeholder="Ej. contrato, local o marca" /></label>
-          <label><span>Participación</span><select value={participation} onChange={(event) => { setParticipation(event.target.value as ParticipationFilter); setPage(1); setExpandedKey(null); }}><option value="all">Todos</option><option value="with">Con participación</option><option value="without">Sin participación</option></select></label>
-        </div>
-      </div>
+    <section className="finance-center-v2" aria-label="Módulo de Finanzas e Inteligencia de Cobranza">
 
-      <div className="finance-kpi-grid">
-        <FinancialKpi tone="wine" label="Renta mensual contratada" value={currencyFormat.format(metrics.monthlyRent)} note={`${numberFormat.format(metrics.rentRecords)} locales en funcionamiento con renta`} />
-        <FinancialKpi tone="green" label="Proyección próximos 12 meses" value={compactCurrencyFormat.format(metrics.annualProjection)} note={metrics.missingRenewalDates ? `${metrics.missingRenewalDates} locales sin fecha excluidos` : "Ajustada a la fecha de renovación"} />
-        <FinancialKpi tone="navy" label="Renta promedio" value={currencyFormat.format(metrics.averageRent)} note="Promedio por local en funcionamiento" />
-        <FinancialKpi tone="gold" label="Costo promedio por m²" value={currencyFormat.format(metrics.averageCostPerM2)} note="Promedio ponderado por superficie" />
-        <FinancialKpi tone="blue" label="Locales con participación" value={numberFormat.format(metrics.participationRecords)} note={`${records.length ? percentFormat.format(metrics.participationRecords / records.length) : "0%"} de los registros de la zona`} />
-      </div>
-
-      <div className="finance-dashboard-grid">
-        <HorizontalMoneyChart title="Renta mensual por zona" kicker="Distribución territorial" data={rentByLocation} emptyText="No hay rentas registradas para esta selección." />
-        <HorizontalMoneyChart title="Contratos con mayor renta" kicker="Principales contratos" data={topContracts} emptyText="No hay rentas registradas para esta selección." />
-        <article className="finance-card finance-chart-card">
-          <div className="finance-card-heading"><div><span>Comparativo contractual</span><h3>Costo por metro cuadrado</h3></div><small>Top 7 · MXN/m²</small></div>
-          {costRanking.length ? <div className="finance-cost-bars">{costRanking.map((contract) => <div key={contract.key}><span title={contract.brand}>{contract.brand}</span><i><em style={{ width: `${Math.max((contract.costPerM2 / maxCost) * 100, 3)}%` }} /></i><strong>{currencyFormat.format(contract.costPerM2)}</strong></div>)}</div> : <p className="finance-card-empty">No hay costos por m² para esta selección.</p>}
-        </article>
-        <article className="finance-card finance-chart-card">
-          <div className="finance-card-heading"><div><span>Composición de cartera</span><h3>Distribución de renta mensual</h3></div><small>Contratos con locales operando</small></div>
-          <div className="finance-range-chart">{rentRanges.map((range) => <div key={range.label}><strong>{range.count}</strong><i><em style={{ height: `${Math.max((range.count / maxRangeCount) * 100, range.count ? 8 : 0)}%` }} /></i><span>{range.label}</span></div>)}</div>
-        </article>
-        <article className="finance-card finance-chart-card finance-concentration-card">
-          <div className="finance-card-heading"><div><span>Riesgo de concentración</span><h3>Concentración de renta mensual</h3></div><small>Top 5 vs. resto</small></div>
-          {concentration.total ? <div className="finance-concentration-content">
-            <div className="finance-donut" style={{ "--concentration": `${concentration.percentage * 360}deg` } as React.CSSProperties}>
-              <div><strong>{percentFormat.format(concentration.percentage)}</strong><span>de la renta</span></div>
+      {/* VISTA 1: Facturado vs. Recuperado */}
+      {currentTab === "billed_vs_recovered" && (
+        <div className="finance-tab-content">
+          <header className="finance-tab-header">
+            <div>
+              <span className="section-kicker">Reporte Mensual de Ingresos</span>
+              <h2>Reporte de lo Facturado contra lo Recuperado</h2>
+              <p>
+                Comparativo mensual de los ingresos facturados y los recursos efectivamente recuperados en el AIFA
+                (Enero a Junio 2026).
+              </p>
             </div>
-            <div className="finance-concentration-detail">
-              <div><i className="top-five" /><span>5 contratos principales</span><strong>{compactCurrencyFormat.format(concentration.topFive)}</strong></div>
-              <div><i className="remaining" /><span>Resto de la cartera</span><strong>{compactCurrencyFormat.format(concentration.remaining)}</strong></div>
-              <ol>{concentration.leaders.map((item) => <li key={item.label}><span>{item.label}</span><strong>{compactCurrencyFormat.format(item.value)}</strong></li>)}</ol>
+            <div className="finance-source-tag">
+              <span>Actualización oficial</span>
+              <strong>14 Jul. 2026</strong>
+              <small>GSC y GEP</small>
             </div>
-          </div> : <p className="finance-card-empty">No hay rentas en funcionamiento para calcular la concentración.</p>}
-        </article>
-        <article className="finance-card finance-chart-card">
-          <div className="finance-card-heading"><div><span>Planeación de renovaciones</span><h3>Renta expuesta por vigencia</h3></div><small>MXN mensuales</small></div>
-          {renewalExposure.buckets.some((bucket) => bucket.value > 0) ? <div className="finance-renewal-chart">
-            {renewalExposure.buckets.map((bucket) => <div key={bucket.label}>
-              <span>{bucket.label}<small>{bucket.count} {bucket.count === 1 ? "contrato" : "contratos"}</small></span>
-              <i><em style={{ width: `${Math.max((bucket.value / maxRenewalExposure) * 100, bucket.value ? 3 : 0)}%` }} /></i>
-              <strong>{bucket.value ? compactCurrencyFormat.format(bucket.value) : "—"}</strong>
-            </div>)}
-            {renewalExposure.withoutDate > 0 && <p>{renewalExposure.withoutDate} contratos con renta no tienen fecha de renovación y no se incluyen en las barras.</p>}
-          </div> : <p className="finance-card-empty">No hay fechas de renovación válidas para esta selección.</p>}
-        </article>
-      </div>
+          </header>
 
-      <article className="finance-future-card">
-        <div><span>Próxima etapa</span><h3>Participación e histórico mensual</h3><p>El tablero ya identifica los contratos sujetos a participación. Cuando Cobranza aporte el ingreso mensual, aquí se calculará la renta aplicable y se comparará mes contra mes sin alterar los periodos anteriores.</p></div>
-        <ul><li>Ingreso reportado por mes</li><li>Renta fija vs. participación</li><li>Variación mensual y anual</li><li>Alertas de datos pendientes</li></ul>
-        <strong>Datos de Cobranza pendientes</strong>
-      </article>
+          {/* KPIs Globales */}
+          <div className="finance-kpi-grid">
+            <article className="finance-kpi-card tone-navy">
+              <span>Total Facturado (Semestre)</span>
+              <strong>{currencyFormat.format(billedTotals.totalBilled)}</strong>
+              <small>Promedio mensual: {compactCurrencyFormat.format(billedTotals.averageMonthlyBilled)}</small>
+            </article>
+            <article className="finance-kpi-card tone-green">
+              <span>Total Recursos Recuperados</span>
+              <strong>{currencyFormat.format(billedTotals.totalRecovered)}</strong>
+              <small>Eficiencia global de cobranza: {numberFormat.format(billedTotals.globalEfficiency)}%</small>
+            </article>
+            <article className={`finance-kpi-card ${isPositiveDelta ? "tone-teal" : "tone-amber"}`}>
+              <span>Diferencia del Semestre (Rec - Fact)</span>
+              <strong style={{ color: isPositiveDelta ? "#0b957e" : "#b56d16" }}>
+                {currencyFormat.format(billedTotals.netDifference)}
+              </strong>
+              <small>
+                {isPositiveDelta
+                  ? "La recuperación supera la facturación acumulada"
+                  : "Facturación excede recursos recuperados (99.9% cobrado)"}
+              </small>
+            </article>
+          </div>
 
-      <article className="finance-table-card">
-        <div className="finance-table-heading"><div><span className="section-kicker">Detalle financiero</span><h3>Finanzas de los contratos</h3><p>Mostrando {filteredContracts.length ? (effectivePage - 1) * FINANCE_PAGE_SIZE + 1 : 0}–{Math.min(effectivePage * FINANCE_PAGE_SIZE, filteredContracts.length)} de {numberFormat.format(filteredContracts.length)} contratos.</p></div></div>
-        {filteredContracts.length ? <><div className="finance-table-wrap"><table className="finance-table"><thead><tr><th>Contrato / arrendatario</th><th>Zona</th><th>Renta mensual</th><th>Costo/m²</th><th>Participación</th><th>Proyección a 12 meses</th><th aria-label="Detalle" /></tr></thead><tbody>{pageContracts.map((contract) => {
-          const expanded = expandedKey === contract.key;
-          return [
-            <tr key={contract.key} className={expanded ? "finance-row-expanded" : ""}>
-              <td><strong>{contract.contractNumber ?? "Sin número de contrato"}</strong><small>{contract.brand} · {contract.locals.length} {contract.locals.length === 1 ? "espacio" : "espacios"}</small></td>
-              <td>{contract.locationName}</td>
-              <td className="finance-numeric"><strong>{contract.hasMonthlyRent ? currencyFormat.format(contract.monthlyRent) : "—"}</strong></td>
-              <td className="finance-numeric">{contract.costPerM2 === null ? "—" : currencyFormat.format(contract.costPerM2)}</td>
-              <td>{contract.participationRate === null ? <span className="finance-badge muted">No aplica</span> : <span className="finance-badge">{percentFormat.format(contract.participationRate)}</span>}</td>
-              <td className="finance-numeric">{contract.annualProjection > 0 ? currencyFormat.format(contract.annualProjection) : "—"}</td>
-              <td><button type="button" className="finance-detail-button" aria-expanded={expanded} onClick={() => setExpandedKey(expanded ? null : contract.key)}>{expanded ? "Cerrar" : "Ver detalle"}</button></td>
-            </tr>,
-            expanded ? <tr key={`${contract.key}-detail`} className="finance-detail-row"><td colSpan={7}><div className="finance-contract-detail"><div><span>Superficie vinculada</span><strong>{numberFormat.format(contract.area)} m²</strong></div><div><span>Proyección próximos 12 meses</span><strong>{contract.annualProjection > 0 ? currencyFormat.format(contract.annualProjection) : "Sin proyección"}</strong></div><div><span>Condición de participación</span><strong>{contract.participationRate === null ? "No aplica / sin dato" : percentFormat.format(contract.participationRate)}</strong><small>{contract.participationNotes}</small></div><div className="finance-linked-locals"><span>Espacios incluidos</span><p>{contract.locals.map((local) => local.nomenclatura || "Sin nomenclatura").join(" · ")}</p></div></div></td></tr> : null,
-          ];
-        })}</tbody></table></div><div className="pagination finance-pagination"><span>Página {effectivePage} de {totalPages}</span><div><button type="button" disabled={effectivePage === 1} onClick={() => { setPage(effectivePage - 1); setExpandedKey(null); }}>Anterior</button><button type="button" disabled={effectivePage === totalPages} onClick={() => { setPage(effectivePage + 1); setExpandedKey(null); }}>Siguiente</button></div></div></> : <p className="finance-no-results">No hay contratos que coincidan con los filtros seleccionados.</p>}
-      </article>
+          {/* Banner de Diferencia del Semestre */}
+          <div className="finance-difference-banner">
+            <div className="difference-icon">{isPositiveDelta ? "📈" : "📊"}</div>
+            <div className="difference-info">
+              <span>Diferencia del Semestre (Enero - Junio)</span>
+              <strong style={{ color: isPositiveDelta ? "#00886f" : "#b56d16" }}>
+                {currencyFormat.format(billedTotals.netDifference)}
+              </strong>
+              <p>
+                {isPositiveDelta
+                  ? "La recuperación acumulada supera el monto facturado en el periodo reportado."
+                  : "El monto facturado en el semestre ($184,458,666.00) supera por -$184,456.90 a los recursos efectivamente recuperados en los 6 meses ($184,274,209.10), alcanzando una efectividad de cobro del 99.90% en el periodo."}
+              </p>
+            </div>
+          </div>
+
+          {/* Tarjetas Mensuales (Enero - Junio) */}
+          <div className="finance-monthly-grid">
+            {monthlyBilledData.map((item) => (
+              <article key={item.monthId} className={`monthly-billed-card tone-${item.statusTone}`}>
+                <header className="monthly-card-header">
+                  <h3>{item.monthName}</h3>
+                  <span className={`monthly-status-badge ${item.statusTone}`}>{item.percentage.toFixed(1)}%</span>
+                </header>
+                <div className="monthly-card-values">
+                  <div className="value-block">
+                    <span>📄 FACTURADO</span>
+                    <strong>{currencyFormat.format(item.billed)}</strong>
+                  </div>
+                  <div className="value-block">
+                    <span>👛 {item.recoveredLabel}</span>
+                    <strong className="recovered-val">{currencyFormat.format(item.recovered)}</strong>
+                  </div>
+                </div>
+                <div className="monthly-card-status">
+                  <span className={`status-icon ${item.statusTone}`}>
+                    {item.statusTone === "green" ? "✓" : item.statusTone === "teal" ? "🚀" : "⚠️"}
+                  </span>
+                  <p>{item.statusText}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+
+          {/* Gráfico Comparativo Mensual de Barras */}
+          <article className="finance-chart-card">
+            <header>
+              <span className="section-kicker">Visualización Comparativa</span>
+              <h3>Ingresos Facturados vs. Recursos Recuperados (Enero - Junio 2026)</h3>
+            </header>
+            <div className="finance-bars-list">
+              {monthlyBilledData.map((item) => {
+                const maxVal = Math.max(item.billed, item.recovered);
+                const billedPct = (item.billed / (maxVal * 1.08)) * 100;
+                const recoveredPct = (item.recovered / (maxVal * 1.08)) * 100;
+                return (
+                  <div key={item.monthId} className="finance-bar-row">
+                    <div className="bar-row-heading">
+                      <strong>{item.monthName}</strong>
+                      <small>
+                        Fact: {compactCurrencyFormat.format(item.billed)} | Rec:{" "}
+                        {compactCurrencyFormat.format(item.recovered)}
+                      </small>
+                    </div>
+                    <div className="bar-tracks">
+                      <div className="bar-track-wrap">
+                        <span className="bar-tag">Facturado</span>
+                        <div className="bar-track">
+                          <div className="bar-fill billed" style={{ width: `${billedPct}%` }} />
+                        </div>
+                      </div>
+                      <div className="bar-track-wrap">
+                        <span className="bar-tag">Recuperado</span>
+                        <div className="bar-track">
+                          <div className="bar-fill recovered" style={{ width: `${recoveredPct}%` }} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </article>
+
+          {/* Nota aclaratoria oficial */}
+          <div className="finance-disclaimer-box">
+            <span className="info-icon">ℹ️</span>
+            <p>
+              <strong>Nota aclaratoria oficial:</strong> Los importes recuperados consideran tanto la facturación del
+              periodo reportado como la cobranza acumulada derivada de adeudamientos y saldos pendientes de ejercicios y
+              periodos anteriores.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* VISTA 2: Cartera Vencida */}
+      {currentTab === "overdue_debt" && (
+        <div className="finance-tab-content">
+          <header className="finance-tab-header">
+            <div>
+              <span className="section-kicker">Seguimiento Quincenal GSC y GEP</span>
+              <h2>Cartera Vencida y Cuentas Incobrables</h2>
+              <p>Monitoreo quincenal de saldos vencidos, top deudores y expedientes en seguimiento directivo.</p>
+            </div>
+            <div className="finance-source-tag">
+              <span>Corte oficial</span>
+              <strong>10 Ago. 2026</strong>
+              <small>GSC y GEP</small>
+            </div>
+          </header>
+
+          {/* KPIs de Cartera Vencida */}
+          <div className="finance-kpi-grid">
+            <article className="finance-kpi-card tone-wine">
+              <span>Cartera Vencida Actual</span>
+              <strong>{currencyFormat.format(overdueTotals.currentCartera)}</strong>
+              <small>Corte 10 de agosto 2026 · 12 registros deudores</small>
+            </article>
+            <article className="finance-kpi-card tone-green">
+              <span>Reducción Acumulada</span>
+              <strong>-47.3%</strong>
+              <small>Disminución de $1.22M (junio) a $646k (agosto)</small>
+            </article>
+            <article className="finance-kpi-card tone-amber">
+              <span>Cuentas Incobrables (Separadas)</span>
+              <strong>{currencyFormat.format(overdueTotals.totalUncollectible)}</strong>
+              <small>3 expedientes en seguimiento directivo especial</small>
+            </article>
+          </div>
+
+          {/* Línea de tiempo quincenal de Cartera */}
+          <article className="cartera-timeline-card">
+            <header>
+              <span className="section-kicker">Evolución Quincenal</span>
+              <h3>Comportamiento de la Cartera Vencida (Mayo - Agosto)</h3>
+            </header>
+            <div className="cartera-timeline-grid">
+              {biweeklyCuts.map((cut, idx) => (
+                <div key={cut.dateLabel} className="cartera-timeline-step">
+                  <div className="step-date">
+                    <span>📅 {cut.dateLabel}</span>
+                  </div>
+                  <div className="step-amount">
+                    <strong>{currencyFormat.format(cut.totalAmount)}</strong>
+                  </div>
+                  <div className="step-clients">
+                    <span>👥 {cut.clientCount} registros</span>
+                  </div>
+                  {idx > 0 && (
+                    <div className="step-delta">
+                      <small>
+                        {cut.totalAmount < biweeklyCuts[idx - 1].totalAmount
+                          ? `▼ ${numberFormat.format(((biweeklyCuts[idx - 1].totalAmount - cut.totalAmount) / biweeklyCuts[idx - 1].totalAmount) * 100)}% recuperado`
+                          : `▲ Incremento quincenal`}
+                      </small>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </article>
+
+          {/* Tabla de Top Deudores al corte */}
+          <article className="debtors-table-card">
+            <header className="debtors-table-header">
+              <div>
+                <h3>Principales Deudores al Corte Oficial (10 de Agosto)</h3>
+                <p>12 registros concentran el saldo regular de cartera vencida.</p>
+              </div>
+              <span className="debtors-total-badge">{currencyFormat.format(overdueTotals.currentCartera)}</span>
+            </header>
+            <div className="debtors-table-wrap">
+              <table className="debtors-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Deudor / Razón Social</th>
+                    <th>Marca / Giro Comercial</th>
+                    <th className="numeric">Saldo Vencido (MXN)</th>
+                    <th className="numeric">% s/ Cartera</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topDebtorsCorteAgosto.map((d, index) => {
+                    const share = overdueTotals.currentCartera > 0 ? (d.amount / overdueTotals.currentCartera) * 100 : 0;
+                    return (
+                      <tr key={d.id}>
+                        <td>
+                          <strong>{index + 1}</strong>
+                        </td>
+                        <td>
+                          <div className="debtor-name">
+                            <strong>{d.name}</strong>
+                          </div>
+                        </td>
+                        <td>
+                          <span className="debtor-brand">{d.brand}</span>
+                        </td>
+                        <td className="numeric">
+                          <strong className="debtor-amount">{currencyFormat.format(d.amount)}</strong>
+                        </td>
+                        <td className="numeric">
+                          <span className="debtor-share-tag">{numberFormat.format(share)}%</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </article>
+
+          {/* Bloque Especial: Cuentas Incobrables */}
+          <article className="uncollectible-accounts-card">
+            <header className="uncollectible-header">
+              <div>
+                <span className="section-kicker">Seguimiento Directivo Especial</span>
+                <h3>Cuentas Incobrables</h3>
+                <p>Registros separados de la cartera regular para no sesgar la operación diaria.</p>
+              </div>
+              <strong className="uncollectible-total-val">{currencyFormat.format(overdueTotals.totalUncollectible)}</strong>
+            </header>
+
+            <div className="uncollectible-grid">
+              {uncollectibleAccounts.map((account) => (
+                <div key={account.contractCode} className="uncollectible-item">
+                  <div className="uncollectible-item-top">
+                    <strong>{account.name}</strong>
+                    <span className="uncollectible-code">{account.contractCode}</span>
+                  </div>
+                  <div className="uncollectible-item-amount">
+                    <span>Monto registrado:</span>
+                    <strong>{currencyFormat.format(account.amount)}</strong>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </article>
+        </div>
+      )}
     </section>
   );
 }

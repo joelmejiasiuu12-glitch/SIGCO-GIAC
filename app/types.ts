@@ -22,6 +22,20 @@ export type PassengerTrafficRecord = {
   status: "real" | "partial" | "projection";
 };
 
+export type AnalysisTarget =
+  | "capacity"
+  | "average"
+  | "median"
+  | "format"
+  | "top3"
+  | "brands"
+  | "multi_location"
+  | "mix"
+  | "vacancy"
+  | "modules"
+  | "levels"
+  | "area_type";
+
 export type LocalRecord = {
   id: number;
   nomenclatura: string;
