@@ -11,8 +11,6 @@ import InstitutionalCenter from "./components/InstitutionalCenter";
 import IntelligenceCenter, { type IntelligenceView } from "./components/IntelligenceCenter";
 import ReportsCenter from "./components/ReportsCenter";
 import SummaryDashboard from "./components/SummaryDashboard";
-import LocalQueryAssistant from "./components/LocalQueryAssistant";
-import GlobalCopilotModal from "./components/GlobalCopilotModal";
 import { locationOptions, type AnalysisTarget, type EtpCommercialCapacityData, type LocalRecord, type PassengerTrafficRecord } from "./types";
 
 type FilterKey =
@@ -229,8 +227,6 @@ export default function DashboardClient() {
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [showAllFilters, setShowAllFilters] = useState(false);
-  const [showLocalAiChat, setShowLocalAiChat] = useState(false);
-  const [showGlobalCopilot, setShowGlobalCopilot] = useState(false);
   const [isModuleMenuFixed, setIsModuleMenuFixed] = useState(false);
   const moduleMenuSentinelRef = useRef<HTMLDivElement>(null);
 
@@ -543,15 +539,6 @@ export default function DashboardClient() {
                 {locationOptions.map((location) => <option key={location.id} value={location.id}>{location.shortName}</option>)}
               </select>
             </label>
-            <button
-              type="button"
-              className="global-copilot-header-btn"
-              onClick={() => setShowGlobalCopilot(true)}
-              aria-haspopup="dialog"
-              aria-expanded={showGlobalCopilot}
-            >
-              ✨ Copiloto IA
-            </button>
             <button type="button" className="institutional-header-button" onClick={() => setShowInstitutional(true)} aria-haspopup="dialog" aria-expanded={showInstitutional}>
               <span className="institutional-header-mark" aria-hidden="true"><i /><i /><i /></span>
               Institucional
@@ -604,18 +591,9 @@ export default function DashboardClient() {
               <span>{activeModule === "home" ? "Panorama" : activeModule === "locals" ? "Locales" : activeModule === "contracts" ? "Contratos" : activeModule === "finances" ? "Finanzas" : "Análisis"}</span>
               {activeModule === "home" && <><button className={homeView === "global" ? "active" : ""} type="button" onClick={() => setHomeView("global")}>Resumen global</button><button className={homeView === "zone" ? "active" : ""} type="button" onClick={() => setHomeView("zone")}>Resumen de zona</button></>}
               {activeModule === "locals" && (
-                <>
-                  <button className="active" type="button" onClick={() => setLocalView("directory")}>
-                    Directorio
-                  </button>
-                  <button
-                    className={`ai-assistant-trigger-btn ${showLocalAiChat ? "active" : ""}`}
-                    type="button"
-                    onClick={() => setShowLocalAiChat((prev) => !prev)}
-                  >
-                    ✨ Asistente IA
-                  </button>
-                </>
+                <button className="active" type="button" onClick={() => setLocalView("directory")}>
+                  Directorio
+                </button>
               )}
               {activeModule === "contracts" && (
                 <button className="active" type="button" onClick={() => setContractView("summary")}>
@@ -1001,38 +979,6 @@ export default function DashboardClient() {
         onClose={() => setShowCommercialAlerts(false)}
       />
       <InstitutionalCenter open={showInstitutional} onClose={() => setShowInstitutional(false)} />
-      <GlobalCopilotModal
-        open={showGlobalCopilot}
-        onClose={() => setShowGlobalCopilot(false)}
-        datasets={datasets}
-        allContractRecords={allContractRecords}
-        onNavigateToModule={(module, subView) => {
-          if (module === "finances") {
-            setActiveModule("finances");
-            if (subView === "overdue_debt") setFinanceSubTab("overdue_debt");
-          } else if (module === "intelligence") {
-            setActiveModule("intelligence");
-            if (subView === "contracts_validity") setIntelligenceView("contracts_validity");
-          } else if (module === "locals") {
-            setActiveModule("locals");
-            setLocalView("directory");
-          } else {
-            setActiveModule(module as any);
-          }
-        }}
-      />
-      {activeModule === "locals" && (
-        <LocalQueryAssistant
-          records={records}
-          locationName={currentLocation.shortName}
-          isOpen={showLocalAiChat}
-          onClose={() => setShowLocalAiChat(false)}
-          onSelectLocal={(nomenclature) => {
-            setSearch(nomenclature);
-            setPage(1);
-          }}
-        />
-      )}
     </main>
   );
 }
