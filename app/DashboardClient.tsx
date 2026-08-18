@@ -11,6 +11,7 @@ import InstitutionalCenter from "./components/InstitutionalCenter";
 import IntelligenceCenter, { type IntelligenceView } from "./components/IntelligenceCenter";
 import ReportsCenter from "./components/ReportsCenter";
 import SummaryDashboard from "./components/SummaryDashboard";
+import GlobalCopilotModal from "./components/GlobalCopilotModal";
 import { locationOptions, type AnalysisTarget, type EtpCommercialCapacityData, type LocalRecord, type PassengerTrafficRecord } from "./types";
 
 type FilterKey =
@@ -227,6 +228,7 @@ export default function DashboardClient() {
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [showAllFilters, setShowAllFilters] = useState(false);
+  const [showGlobalCopilot, setShowGlobalCopilot] = useState(false);
   const [isModuleMenuFixed, setIsModuleMenuFixed] = useState(false);
   const moduleMenuSentinelRef = useRef<HTMLDivElement>(null);
 
@@ -539,6 +541,15 @@ export default function DashboardClient() {
                 {locationOptions.map((location) => <option key={location.id} value={location.id}>{location.shortName}</option>)}
               </select>
             </label>
+            <button
+              type="button"
+              className="global-copilot-header-btn"
+              onClick={() => setShowGlobalCopilot(true)}
+              aria-haspopup="dialog"
+              aria-expanded={showGlobalCopilot}
+            >
+              ✨ Copiloto IA
+            </button>
             <button type="button" className="institutional-header-button" onClick={() => setShowInstitutional(true)} aria-haspopup="dialog" aria-expanded={showInstitutional}>
               <span className="institutional-header-mark" aria-hidden="true"><i /><i /><i /></span>
               Institucional
@@ -979,6 +990,26 @@ export default function DashboardClient() {
         onClose={() => setShowCommercialAlerts(false)}
       />
       <InstitutionalCenter open={showInstitutional} onClose={() => setShowInstitutional(false)} />
+      <GlobalCopilotModal
+        open={showGlobalCopilot}
+        onClose={() => setShowGlobalCopilot(false)}
+        datasets={datasets}
+        allContractRecords={allContractRecords}
+        onNavigateToModule={(module, subView) => {
+          if (module === "finances") {
+            setActiveModule("finances");
+            if (subView === "overdue_debt") setFinanceSubTab("overdue_debt");
+          } else if (module === "intelligence") {
+            setActiveModule("intelligence");
+            if (subView === "contracts_validity") setIntelligenceView("contracts_validity");
+          } else if (module === "locals") {
+            setActiveModule("locals");
+            setLocalView("directory");
+          } else {
+            setActiveModule(module as any);
+          }
+        }}
+      />
     </main>
   );
 }
