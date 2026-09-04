@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { AdvertisingSpaceRecord, LocalRecord } from "../types";
+import AdvertisingFormModal from "./AdvertisingFormModal";
 
 interface AdvertisingCenterProps {
   advertisingSpaces: AdvertisingSpaceRecord[];
@@ -10,6 +11,10 @@ interface AdvertisingCenterProps {
   initialSearch?: string;
   initialUnitCode?: string | null;
   onClearInitialUnit?: () => void;
+  onSaveUnit?: (unit: AdvertisingSpaceRecord) => void;
+  onDeleteUnit?: (unit: AdvertisingSpaceRecord) => void;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
 export interface ConvenioRecord {
@@ -72,6 +77,10 @@ export default function AdvertisingCenter({
   initialSearch = "",
   initialUnitCode = null,
   onClearInitialUnit,
+  onSaveUnit,
+  onDeleteUnit,
+  canEdit = true,
+  canDelete = true,
 }: AdvertisingCenterProps) {
   const [subTab, setSubTab] = useState<"directory" | "formats" | "contracts" | "convenios">("directory");
   const [search, setSearch] = useState<string>(initialSearch || "");
@@ -82,6 +91,34 @@ export default function AdvertisingCenter({
   const [page, setPage] = useState<number>(1);
   const [selectedUnit, setSelectedUnit] = useState<AdvertisingSpaceRecord | null>(null);
   const [selectedConvenio, setSelectedConvenio] = useState<ConvenioRecord | null>(null);
+
+  // Form modal state (Crear / Editar)
+  const [isFormModalOpen, setIsFormModalOpen] = useState(false);
+  const [editingUnit, setEditingUnit] = useState<AdvertisingSpaceRecord | null>(null);
+
+  const handleOpenAddUnit = () => {
+    setEditingUnit(null);
+    setIsFormModalOpen(true);
+  };
+
+  const handleOpenEditUnit = (unit: AdvertisingSpaceRecord) => {
+    setEditingUnit(unit);
+    setIsFormModalOpen(true);
+  };
+
+  const handleDeleteUnit = (unit: AdvertisingSpaceRecord) => {
+    if (window.confirm(`¿Confirmas la eliminación del soporte publicitario ${unit.id_unidad} (${unit.codigo_nomenclatura})?`)) {
+      onDeleteUnit?.(unit);
+      if (selectedUnit?.id_unidad === unit.id_unidad) {
+        setSelectedUnit(null);
+      }
+    }
+  };
+
+  const handleSaveUnit = (unit: AdvertisingSpaceRecord) => {
+    onSaveUnit?.(unit);
+    setIsFormModalOpen(false);
+  };
 
   // Sincronizar búsqueda y unidad seleccionada desde navegación externa (ej. contratos GEP)
   useEffect(() => {
@@ -462,24 +499,37 @@ export default function AdvertisingCenter({
               )}
             </div>
 
-            {/* Alternador de vista cuadrícula / tabla */}
-            <div className="adv-view-toggles">
-              <button
-                type="button"
-                className={viewMode === "grid" ? "active" : ""}
-                onClick={() => setViewMode("grid")}
-                title="Vista de cuadrícula con tarjetas visuales"
-              >
-                ▦ Tarjetas
-              </button>
-              <button
-                type="button"
-                className={viewMode === "table" ? "active" : ""}
-                onClick={() => setViewMode("table")}
-                title="Vista de tabla ejecutiva"
-              >
-                ≡ Tabla
-              </button>
+            <div className="adv-controls-right-group">
+              {/* Alternador de vista cuadrícula / tabla */}
+              <div className="adv-view-toggles">
+                <button
+                  type="button"
+                  className={viewMode === "grid" ? "active" : ""}
+                  onClick={() => setViewMode("grid")}
+                  title="Vista de cuadrícula con tarjetas visuales"
+                >
+                  ▦ Tarjetas
+                </button>
+                <button
+                  type="button"
+                  className={viewMode === "table" ? "active" : ""}
+                  onClick={() => setViewMode("table")}
+                  title="Vista de tabla ejecutiva"
+                >
+                  ≡ Tabla
+                </button>
+              </div>
+
+              {canEdit && (
+                <button
+                  type="button"
+                  className="adv-add-space-btn"
+                  onClick={handleOpenAddUnit}
+                  title="Agregar nuevo soporte publicitario al inventario"
+                >
+                  <span>➕ Agregar Espacio</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -582,7 +632,7 @@ export default function AdvertisingCenter({
               {selectedCategory !== "all" && ` de tipo ${selectedCategory.toUpperCase()}`}
             </span>
             <span className="adv-meta-operating-tag">
-              <i className="status-dot" style={{ background: "#00886f" }} /> 166 de 167 unidades operativas (99.4%)
+              <i className="status-dot" style={{ background: "#00886f" }} /> {operatingUnitsCount} de {totalUnitsCount} unidades operativas ({operatingRate.toFixed(1)}%)
             </span>
           </div>
 
@@ -642,6 +692,34 @@ export default function AdvertisingCenter({
                       >
                         Ver Ficha Técnica →
                       </button>
+                      <div className="adv-card-actions">
+                        {canEdit && (
+                          <button
+                            type="button"
+                            className="table-action-btn edit-local-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenEditUnit(unit);
+                            }}
+                            title="Editar soporte publicitario"
+                          >
+                            ✏️ Editar
+                          </button>
+                        )}
+                        {canDelete && (
+                          <button
+                            type="button"
+                            className="delete-local-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteUnit(unit);
+                            }}
+                            title="Eliminar soporte publicitario"
+                          >
+                            🗑️
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </article>
                 );
@@ -660,7 +738,7 @@ export default function AdvertisingCenter({
                     <th>Arrendatario</th>
                     <th>No. Contrato</th>
                     <th>Estatus</th>
-                    <th>Acción</th>
+                    <th>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -707,13 +785,41 @@ export default function AdvertisingCenter({
                           </span>
                         </td>
                         <td>
-                          <button
-                            type="button"
-                            className="table-action-btn"
-                            onClick={() => setSelectedUnit(unit)}
-                          >
-                            Ver Ficha
-                          </button>
+                          <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                            <button
+                              type="button"
+                              className="table-action-btn"
+                              onClick={() => setSelectedUnit(unit)}
+                            >
+                              Ver Ficha
+                            </button>
+                            {canEdit && (
+                              <button
+                                type="button"
+                                className="table-action-btn edit-local-btn"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenEditUnit(unit);
+                                }}
+                                title="Editar soporte publicitario"
+                              >
+                                ✏️
+                              </button>
+                            )}
+                            {canDelete && (
+                              <button
+                                type="button"
+                                className="delete-local-btn"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteUnit(unit);
+                                }}
+                                title="Eliminar soporte publicitario"
+                              >
+                                🗑️
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1035,6 +1141,31 @@ export default function AdvertisingCenter({
             </div>
 
             <footer className="adv-modal-footer">
+              <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                {canEdit && (
+                  <button
+                    type="button"
+                    className="table-action-btn edit-local-btn"
+                    onClick={() => {
+                      handleOpenEditUnit(selectedUnit);
+                      handleCloseUnit();
+                    }}
+                  >
+                    ✏️ Editar Soporte
+                  </button>
+                )}
+                {canDelete && (
+                  <button
+                    type="button"
+                    className="delete-local-btn"
+                    onClick={() => {
+                      handleDeleteUnit(selectedUnit);
+                    }}
+                  >
+                    🗑️ Eliminar
+                  </button>
+                )}
+              </div>
               <button
                 type="button"
                 className="adv-modal-primary-close"
@@ -1141,6 +1272,14 @@ export default function AdvertisingCenter({
           </div>
         </div>
       )}
+
+      {/* Formulario Modal para Agregar / Editar Espacio Publicitario */}
+      <AdvertisingFormModal
+        isOpen={isFormModalOpen}
+        onClose={() => setIsFormModalOpen(false)}
+        onSave={handleSaveUnit}
+        initialRecord={editingUnit}
+      />
     </div>
   );
 }

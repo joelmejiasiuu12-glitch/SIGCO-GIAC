@@ -544,6 +544,53 @@ export default function DashboardClient() {
     }
   };
 
+  const handleSaveAdvertisingSpace = async (savedSpace: AdvertisingSpaceRecord) => {
+    const isEdit = advertisingSpaces.some(
+      (s) => s.id === savedSpace.id || s.id_unidad === savedSpace.id_unidad
+    );
+
+    // 1. Actualización reactiva inmediata
+    setAdvertisingSpaces((prev) => {
+      const exists = prev.some(
+        (s) => s.id === savedSpace.id || s.id_unidad === savedSpace.id_unidad
+      );
+      if (exists) {
+        return prev.map((s) =>
+          s.id === savedSpace.id || s.id_unidad === savedSpace.id_unidad ? savedSpace : s
+        );
+      }
+      return [savedSpace, ...prev];
+    });
+
+    // 2. Persistencia remota en Cloudflare D1
+    try {
+      await fetch("/api/espacios-publicitarios", {
+        method: isEdit ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(savedSpace),
+      });
+    } catch (err) {
+      console.warn("Error guardando espacio publicitario en D1:", err);
+    }
+  };
+
+  const handleDeleteAdvertisingSpace = async (space: AdvertisingSpaceRecord) => {
+    // 1. Actualización reactiva inmediata
+    setAdvertisingSpaces((prev) =>
+      prev.filter((s) => s.id !== space.id && s.id_unidad !== space.id_unidad)
+    );
+
+    // 2. Eliminación remota en Cloudflare D1
+    try {
+      await fetch(
+        `/api/espacios-publicitarios?id=${encodeURIComponent(space.id)}&id_unidad=${encodeURIComponent(space.id_unidad)}`,
+        { method: "DELETE" }
+      );
+    } catch (err) {
+      console.warn("Error eliminando espacio publicitario en D1:", err);
+    }
+  };
+
   const handleOpenAddContract = () => {
     setEditingContractRecord(null);
     setIsContractModalOpen(true);
@@ -1282,105 +1329,6 @@ export default function DashboardClient() {
                   </svg>
                   <span>Salir</span>
                 </button>
-
-                {/* Modal Ejecutivo de Cuenta (Posición fija en capa superior, sin cruce con otros módulos) */}
-                {isUserMenuOpen && (
-                  <div
-                    className="user-account-modal-overlay"
-                    onClick={() => setIsUserMenuOpen(false)}
-                    role="dialog"
-                    aria-label="Detalles de la cuenta"
-                  >
-                    <div
-                      className="user-account-modal-card"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <div className="modal-account-header">
-                        <div className="modal-avatar-circle">
-                          <img
-                            src="/brand/aifa-logo-vertical-dark.png"
-                            alt="AIFA"
-                            style={{ maxHeight: "28px", objectFit: "contain" }}
-                          />
-                        </div>
-                        <div className="modal-user-headings">
-                          <span className="modal-institution-tag">AIFA · SERVICIOS COMERCIALES</span>
-                          <strong className="modal-user-fullname">{currentUser.fullName}</strong>
-                          <span className="modal-role-pill">{currentUser.roleLabel}</span>
-                        </div>
-                        <button
-                          type="button"
-                          className="modal-close-btn"
-                          onClick={() => setIsUserMenuOpen(false)}
-                          title="Cerrar ventana"
-                          aria-label="Cerrar"
-                        >
-                          ✕
-                        </button>
-                      </div>
-
-                      <div className="modal-account-divider" />
-
-                      <div className="modal-account-body">
-                        <div className="modal-info-item">
-                          <span className="modal-info-label">Usuario Conectado</span>
-                          <span className="modal-info-val">{currentUser.username}</span>
-                        </div>
-                        <div className="modal-info-item">
-                          <span className="modal-info-label">Nivel de Privilegios</span>
-                          <span className="modal-info-val privilege-highlight">
-                            {currentUser.role === "subdirectora"
-                              ? "Superadministrador (Acceso Total · Edición, Alta y Baja)"
-                              : currentUser.role === "auxiliar"
-                              ? "Operativo (Edición y Alta de Contratos/Locales)"
-                              : "Consulta (Solo Lectura · Sin Modificaciones)"}
-                          </span>
-                        </div>
-                        <div className="modal-info-item">
-                          <span className="modal-info-label">Área de Adscripción</span>
-                          <span className="modal-info-val privilege-highlight">
-                            Subdirección de Servicios Comerciales · AIFA
-                          </span>
-                        </div>
-                        <div className="modal-info-item">
-                          <span className="modal-info-label">Herramienta Ejecutiva</span>
-                          <button
-                            type="button"
-                            className="modal-boardroom-action-btn"
-                            onClick={() => {
-                              setIsUserMenuOpen(false);
-                              toggleBoardroomMode();
-                            }}
-                            title="Alternar Modo Sala de Juntas / Pantalla Completa (Atajo: Alt + J)"
-                          >
-                            <span>📺 Activar Modo Sala de Juntas</span>
-                            <kbd className="modal-kbd">Alt + J</kbd>
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="modal-account-divider" />
-
-                      <div className="modal-account-footer">
-                        <button
-                          type="button"
-                          className="modal-logout-action-btn"
-                          onClick={() => {
-                            setIsUserMenuOpen(false);
-                            handleLogout();
-                          }}
-                        >
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                            <polyline points="16 17 21 12 16 7" />
-                            <line x1="21" y1="12" x2="9" y2="12" />
-                          </svg>
-                          Finalizar Sesión Institucional
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
             )}
           </div>
@@ -1775,7 +1723,19 @@ export default function DashboardClient() {
                             record={record}
                             expanded={expandedId === record.id}
                             onToggle={() => setExpandedId(expandedId === record.id ? null : record.id)}
-                            onOpenContract={() => { setActiveModule("contracts"); setContractView("summary"); }}
+                            onOpenContract={(contractNum) => {
+                              const target = (contractNum || record.contractNumber || "").trim();
+                              if (target) {
+                                setContractLocationId("all");
+                                setContractSearchQuery(target);
+                                setContractGerenciaFilter("all");
+                                setContractView("summary");
+                                setActiveModule("contracts");
+                              } else {
+                                setActiveModule("contracts");
+                                setContractView("summary");
+                              }
+                            }}
                             onEdit={() => handleOpenEditLocal(record)}
                             onDelete={() => handleDeleteLocal(record)}
                           />
@@ -1889,6 +1849,105 @@ export default function DashboardClient() {
         />
       )}
 
+      {/* Modal Ejecutivo de Cuenta Institucional (Capa Raíz - z-index superior absoluto) */}
+      {isUserMenuOpen && currentUser && (
+        <div
+          className="user-account-modal-overlay"
+          onClick={() => setIsUserMenuOpen(false)}
+          role="dialog"
+          aria-label="Detalles de la cuenta"
+        >
+          <div
+            className="user-account-modal-card"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-account-header">
+              <div className="modal-avatar-circle">
+                <img
+                  src="/brand/aifa-logo-vertical-dark.png"
+                  alt="AIFA"
+                  style={{ maxHeight: "28px", objectFit: "contain" }}
+                />
+              </div>
+              <div className="modal-user-headings">
+                <span className="modal-institution-tag">AIFA · SERVICIOS COMERCIALES</span>
+                <strong className="modal-user-fullname">{currentUser.fullName}</strong>
+                <span className="modal-role-pill">{currentUser.roleLabel}</span>
+              </div>
+              <button
+                type="button"
+                className="modal-close-btn"
+                onClick={() => setIsUserMenuOpen(false)}
+                title="Cerrar ventana"
+                aria-label="Cerrar"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="modal-account-divider" />
+
+            <div className="modal-account-body">
+              <div className="modal-info-item">
+                <span className="modal-info-label">Usuario Conectado</span>
+                <span className="modal-info-val">{currentUser.username}</span>
+              </div>
+              <div className="modal-info-item">
+                <span className="modal-info-label">Nivel de Privilegios</span>
+                <span className="modal-info-val privilege-highlight">
+                  {currentUser.role === "subdirectora"
+                    ? "Superadministrador (Acceso Total · Edición, Alta y Baja)"
+                    : currentUser.role === "auxiliar"
+                    ? "Operativo (Edición y Alta de Contratos/Locales)"
+                    : "Consulta (Solo Lectura · Sin Modificaciones)"}
+                </span>
+              </div>
+              <div className="modal-info-item">
+                <span className="modal-info-label">Área de Adscripción</span>
+                <span className="modal-info-val privilege-highlight">
+                  Subdirección de Servicios Comerciales · AIFA
+                </span>
+              </div>
+              <div className="modal-info-item">
+                <span className="modal-info-label">Herramienta Ejecutiva</span>
+                <button
+                  type="button"
+                  className="modal-boardroom-action-btn"
+                  onClick={() => {
+                    setIsUserMenuOpen(false);
+                    toggleBoardroomMode();
+                  }}
+                  title="Alternar Modo Sala de Juntas / Pantalla Completa (Atajo: Alt + J)"
+                >
+                  <span>📺 Activar Modo Sala de Juntas</span>
+                  <kbd className="modal-kbd">Alt + J</kbd>
+                </button>
+              </div>
+            </div>
+
+            <div className="modal-account-divider" />
+
+            <div className="modal-account-footer">
+              <button
+                type="button"
+                className="modal-logout-action-btn"
+                onClick={() => {
+                  setIsUserMenuOpen(false);
+                  handleLogout();
+                }}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+                Finalizar Sesión Institucional
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Botón flotante discreto de Sala de Juntas en esquina inferior */}
       {!isBoardroomMode && (
         <button
@@ -1917,7 +1976,7 @@ function RecordRows({
   record: LocalRecord;
   expanded: boolean;
   onToggle: () => void;
-  onOpenContract: () => void;
+  onOpenContract: (contractNumber?: string | null) => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -1991,7 +2050,7 @@ function RecordRows({
               <div><span>Gerencia</span><strong>{record.gerencia || "Sin dato"}</strong></div>
               <div><span>Subdirección</span><strong>{record.subdireccion || "Sin dato"}</strong></div>
               <div><span>Giro IATA</span><strong>{record.giroIata || "Sin dato"}</strong></div>
-              <div><span>Contrato</span><strong>{record.contractNumber || "Sin número"}</strong>{(record.contractNumber || record.contractPending) && <button type="button" className="inline-module-link" onClick={onOpenContract}>Ver en contratos →</button>}</div>
+              <div><span>Contrato</span><strong>{record.contractNumber || "Sin número"}</strong>{(record.contractNumber || record.contractPending) && <button type="button" className="inline-module-link" onClick={() => onOpenContract(record.contractNumber)}>Ver en contratos →</button>}</div>
               <div><span>Renta mensual</span><strong>{record.monthlyRent === null ? "Sin dato" : new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 }).format(record.monthlyRent)}</strong></div>
               <div><span>Renovación</span><strong>{record.renewalDate || "Sin dato"}</strong></div>
               <div><span>Gestor</span><strong>{record.manager || "Sin asignar"}</strong></div>

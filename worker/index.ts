@@ -311,7 +311,7 @@ const worker = {
         return new Response(null, {
           headers: {
             ...headers,
-            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
             "Access-Control-Allow-Headers": "Content-Type",
           },
         });
@@ -324,21 +324,118 @@ const worker = {
         });
       }
 
-      try {
-        const { results } = await env.DB.prepare(
-          "SELECT * FROM espacios_publicitarios ORDER BY id_unidad ASC"
-        ).all();
+      if (request.method === "GET") {
+        try {
+          const { results } = await env.DB.prepare(
+            "SELECT * FROM espacios_publicitarios ORDER BY id_unidad ASC"
+          ).all();
 
-        return new Response(JSON.stringify({
-          success: true,
-          total: results.length,
-          advertisingSpaces: results,
-        }), { headers });
-      } catch (err) {
-        return new Response(JSON.stringify({ success: false, error: String(err) }), {
-          status: 500,
-          headers,
-        });
+          return new Response(JSON.stringify({
+            success: true,
+            total: results.length,
+            advertisingSpaces: results,
+          }), { headers });
+        } catch (err) {
+          return new Response(JSON.stringify({ success: false, error: String(err) }), {
+            status: 500,
+            headers,
+          });
+        }
+      }
+
+      if (request.method === "POST" || request.method === "PUT") {
+        try {
+          const body = (await request.json()) as any;
+          const {
+            id_unidad,
+            contrato_id,
+            arrendatario,
+            codigo_nomenclatura,
+            tipo_medio,
+            modulo,
+            nivel,
+            superficie,
+            ubicacion_especifica,
+            estatus_operativo,
+            observaciones,
+          } = body;
+
+          if (!id_unidad) {
+            return new Response(JSON.stringify({ success: false, error: "id_unidad es obligatorio" }), {
+              status: 400,
+              headers,
+            });
+          }
+
+          await env.DB.prepare(`
+            INSERT INTO espacios_publicitarios (
+              id_unidad, contrato_id, arrendatario, codigo_nomenclatura, tipo_medio,
+              modulo, nivel, superficie, ubicacion_especifica, estatus_operativo, observaciones, activo
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+            ON CONFLICT(id_unidad) DO UPDATE SET
+              contrato_id = excluded.contrato_id,
+              arrendatario = excluded.arrendatario,
+              codigo_nomenclatura = excluded.codigo_nomenclatura,
+              tipo_medio = excluded.tipo_medio,
+              modulo = excluded.modulo,
+              nivel = excluded.nivel,
+              superficie = excluded.superficie,
+              ubicacion_especifica = excluded.ubicacion_especifica,
+              estatus_operativo = excluded.estatus_operativo,
+              observaciones = excluded.observaciones,
+              activo = 1
+          `).bind(
+            id_unidad,
+            contrato_id || null,
+            arrendatario || null,
+            codigo_nomenclatura || id_unidad,
+            tipo_medio || "Video Wall",
+            modulo || "General",
+            nivel || "1",
+            superficie !== null && superficie !== undefined ? Number(superficie) : null,
+            ubicacion_especifica || null,
+            estatus_operativo || "Operando",
+            observaciones || null
+          ).run();
+
+          return new Response(JSON.stringify({ success: true, message: "Espacio publicitario guardado exitosamente" }), {
+            headers,
+          });
+        } catch (err) {
+          return new Response(JSON.stringify({ success: false, error: String(err) }), {
+            status: 500,
+            headers,
+          });
+        }
+      }
+
+      if (request.method === "DELETE") {
+        try {
+          const idUnidad = url.searchParams.get("id_unidad");
+          const id = url.searchParams.get("id");
+
+          if (!idUnidad && !id) {
+            return new Response(JSON.stringify({ success: false, error: "id_unidad o id requerido" }), {
+              status: 400,
+              headers,
+            });
+          }
+
+          if (idUnidad) {
+            await env.DB.prepare("DELETE FROM espacios_publicitarios WHERE id_unidad = ?").bind(idUnidad).run();
+          } else {
+            await env.DB.prepare("DELETE FROM espacios_publicitarios WHERE id = ?").bind(Number(id)).run();
+          }
+
+          return new Response(JSON.stringify({ success: true, message: "Espacio publicitario eliminado exitosamente" }), {
+            headers,
+          });
+        } catch (err) {
+          return new Response(JSON.stringify({ success: false, error: String(err) }), {
+            status: 500,
+            headers,
+          });
+        }
       }
     }
 

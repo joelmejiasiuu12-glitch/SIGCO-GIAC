@@ -174,188 +174,179 @@ export default function CommercialCapacityModal({
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 9999 }}>
+    <div className="adv-modal-overlay capacity-modal-overlay" onClick={onClose} role="dialog" aria-modal="true">
       <div
-        className="modal-card capacity-update-modal"
+        className="adv-modal-dialog capacity-modal-dialog"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: "720px", width: "95%", maxHeight: "90vh", overflowY: "auto" }}
       >
-        <div className="modal-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #dfe4e7", paddingBottom: "12px" }}>
-          <div>
-            <span className="section-kicker" style={{ color: "#ac182c", fontWeight: 700, fontSize: "11px", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-              Subdirección de Servicios Comerciales · AIFA
+        <header className="adv-modal-header">
+          <div className="adv-modal-title-wrap">
+            <span className="adv-modal-big-icon" aria-hidden="true">
+              {activeTab === "capacity" ? "📐" : "🛫"}
             </span>
-            <h2 style={{ fontSize: "19px", margin: "4px 0 0", color: "#09212e" }}>
-              Actualización de Capacidad Comercial y Tráfico
-            </h2>
+            <div>
+              <span className="adv-modal-kicker">Subdirección de Servicios Comerciales · AIFA</span>
+              <h2>Capacidad de Atención Comercial y Tráfico de Pasajeros</h2>
+            </div>
           </div>
           <button
             type="button"
-            className="modal-close-btn"
+            className="adv-modal-close-btn"
             onClick={onClose}
             aria-label="Cerrar modal"
-            style={{ background: "none", border: "none", fontSize: "22px", cursor: "pointer", color: "#596975" }}
+            title="Cerrar"
           >
             ✕
           </button>
-        </div>
+        </header>
 
         {/* Modal Subtabs */}
-        <div className="capacity-modal-tabs" style={{ display: "flex", gap: "8px", margin: "16px 0", borderBottom: "1px solid #dfe4e7" }}>
+        <nav className="capacity-nav-tabs">
           <button
             type="button"
+            className={`capacity-nav-tab ${activeTab === "capacity" ? "active" : ""}`}
             onClick={() => setActiveTab("capacity")}
-            style={{
-              padding: "8px 16px",
-              border: "none",
-              borderBottom: activeTab === "capacity" ? "3px solid #ac182c" : "3px solid transparent",
-              background: "none",
-              fontWeight: 700,
-              color: activeTab === "capacity" ? "#ac182c" : "#596975",
-              cursor: "pointer",
-              fontSize: "14px",
-            }}
           >
-            📐 Parámetros Capacidad Comercial ETP
+            📐 Parámetros de Capacidad Comercial (ETP)
           </button>
           <button
             type="button"
+            className={`capacity-nav-tab ${activeTab === "traffic" ? "active" : ""}`}
             onClick={() => setActiveTab("traffic")}
-            style={{
-              padding: "8px 16px",
-              border: "none",
-              borderBottom: activeTab === "traffic" ? "3px solid #ac182c" : "3px solid transparent",
-              background: "none",
-              fontWeight: 700,
-              color: activeTab === "traffic" ? "#ac182c" : "#596975",
-              cursor: "pointer",
-              fontSize: "14px",
-            }}
           >
-            🛫 Registro de Tráfico Mensual
+            🛫 Registro de Tráfico Mensual ({passengerTraffic.length})
           </button>
-        </div>
+        </nav>
 
         {/* TAB 1: CAPACIDAD COMERCIAL */}
         {activeTab === "capacity" && (
-          <form onSubmit={handleSaveCapacity} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-            <p style={{ fontSize: "13px", color: "#596975", margin: 0 }}>
-              Modifique los coeficientes y superficies oficiales del Edificio Terminal de Pasajeros (ETP). Estos valores recalculan en tiempo real la <strong>Capacidad de Atención Comercial</strong> en el Tablero de Inicio y Reportes Ejecutivos.
-            </p>
+          <form onSubmit={handleSaveCapacity} className="capacity-form">
+            <div className="capacity-intro-box">
+              <p>
+                Configure los coeficientes y superficies oficiales del Edificio Terminal de Pasajeros (ETP). Estos valores recalculan en tiempo real la <strong>Capacidad de Atención Comercial</strong> en el Tablero de Inicio y Reportes Ejecutivos.
+              </p>
+            </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
-              <label style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "13px", color: "#09212e", fontWeight: 600 }}>
-                Capacidad Terminal de Diseño (Pax/Año):
+            <div className="capacity-grid">
+              <div className="capacity-field">
+                <label htmlFor="terminal-cap">
+                  Capacidad Terminal de Diseño (Pax/Año) <span className="req">*</span>
+                </label>
                 <input
+                  id="terminal-cap"
                   type="number"
                   step="100000"
                   value={terminalCapacity}
                   onChange={(e) => setTerminalCapacity(Number(e.target.value))}
-                  style={{ padding: "8px 12px", borderRadius: "6px", border: "1px solid #c2cbd1", fontSize: "14px" }}
                   required
                 />
-                <small style={{ color: "#71828d", fontWeight: 400 }}>Diseño inicial oficial: 20,000,000 Pax</small>
-              </label>
+                <small>Diseño inicial oficial: 20,000,000 Pax</small>
+              </div>
 
-              <label style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "13px", color: "#09212e", fontWeight: 600 }}>
-                Factor Superficie Comercial (m²/Pax):
+              <div className="capacity-field">
+                <label htmlFor="area-factor">
+                  Factor Superficie Comercial (m²/Pax) <span className="req">*</span>
+                </label>
                 <input
+                  id="area-factor"
                   type="number"
                   step="0.000001"
                   value={areaFactor}
                   onChange={(e) => setAreaFactor(Number(e.target.value))}
-                  style={{ padding: "8px 12px", borderRadius: "6px", border: "1px solid #c2cbd1", fontSize: "14px" }}
                   required
                 />
-                <small style={{ color: "#71828d", fontWeight: 400 }}>Estándar normativo: 0.000821 m² por pasajero</small>
-              </label>
+                <small>Estándar normativo IATA/OACI: 0.000821 m² por pasajero</small>
+              </div>
 
-              <label style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "13px", color: "#09212e", fontWeight: 600 }}>
-                Superficie Comercial Arrendada (m²):
+              <div className="capacity-field">
+                <label htmlFor="leased-area">
+                  Superficie Comercial Arrendada (m²) <span className="req">*</span>
+                </label>
                 <input
+                  id="leased-area"
                   type="number"
                   step="0.01"
                   value={leasedArea}
                   onChange={(e) => setLeasedArea(Number(e.target.value))}
-                  style={{ padding: "8px 12px", borderRadius: "6px", border: "1px solid #c2cbd1", fontSize: "14px" }}
                   required
                 />
-                <small style={{ color: "#71828d", fontWeight: 400 }}>Metraje comercial ocupado en ETP</small>
-              </label>
+                <small>Metraje comercial ocupado en ETP</small>
+              </div>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "13px", color: "#09212e", fontWeight: 600 }}>
-                <span>Superficie Comercial Recomendada:</span>
-                <div style={{ padding: "8px 12px", background: "#f5f7f8", borderRadius: "6px", border: "1px solid #e1e6ea", fontSize: "14px", fontWeight: 700, color: "#405364" }}>
+              <div className="capacity-field">
+                <label>Superficie Comercial Recomendada</label>
+                <div className="capacity-computed-val">
                   {numberFormat.format(recommendedArea)} m²
                 </div>
-                <small style={{ color: "#71828d", fontWeight: 400 }}>Calculada: {terminalCapacity.toLocaleString()} × {areaFactor}</small>
+                <small>Calculada: {terminalCapacity.toLocaleString()} Pax × {areaFactor}</small>
               </div>
             </div>
 
             {/* Resultado Proyectado */}
-            <div style={{ background: "#fdf2f4", border: "1px solid #f2c7ce", borderRadius: "8px", padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "4px" }}>
+            <div className="capacity-kpi-banner">
               <div>
-                <span style={{ fontSize: "12px", textTransform: "uppercase", color: "#ac182c", fontWeight: 700, letterSpacing: "0.05em" }}>
+                <span className="capacity-kpi-label">
                   Capacidad de Atención Comercial Resultante:
                 </span>
-                <h3 style={{ fontSize: "22px", margin: "4px 0 0", color: "#8a1323" }}>
-                  {passengerFormat.format(commercialCapacityPax)} <span style={{ fontSize: "14px", fontWeight: 500 }}>Pax. equivalentes</span>
-                </h3>
+                <div className="capacity-kpi-val">
+                  {passengerFormat.format(commercialCapacityPax)}{" "}
+                  <span className="capacity-kpi-unit">Pasajeros equivalentes</span>
+                </div>
               </div>
-              <div style={{ textAlign: "right", fontSize: "12px", color: "#596975" }}>
-                <div>Relación de Cobertura:</div>
-                <strong style={{ fontSize: "16px", color: commercialCapacityPax >= terminalCapacity ? "#00886f" : "#ac182c" }}>
+              <div className="capacity-kpi-coverage">
+                <span className="coverage-label">Relación de Cobertura:</span>
+                <strong className={`coverage-percent ${commercialCapacityPax >= terminalCapacity ? "ok" : "alert"}`}>
                   {terminalCapacity > 0 ? `${((commercialCapacityPax / terminalCapacity) * 100).toFixed(1)}%` : "0%"}
                 </strong>
               </div>
             </div>
 
             {capacityMessage && (
-              <div style={{ padding: "10px 14px", borderRadius: "6px", background: "#e6f4f1", color: "#006250", fontSize: "13px", fontWeight: 600 }}>
+              <div className="capacity-status-alert success">
                 {capacityMessage}
               </div>
             )}
 
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "8px" }}>
-              <button type="button" onClick={onClose} style={{ padding: "9px 18px", borderRadius: "6px", border: "1px solid #c2cbd1", background: "#ffffff", cursor: "pointer", fontWeight: 600 }}>
+            <footer className="adv-form-footer">
+              <button type="button" className="btn-secondary" onClick={onClose}>
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={savingCapacity}
-                style={{ padding: "9px 22px", borderRadius: "6px", border: "none", background: "#ac182c", color: "#ffffff", cursor: "pointer", fontWeight: 700 }}
+                className="btn-primary"
               >
                 {savingCapacity ? "Guardando en D1…" : "Guardar Parámetros"}
               </button>
-            </div>
+            </footer>
           </form>
         )}
 
         {/* TAB 2: TRÁFICO DE PASAJEROS */}
         {activeTab === "traffic" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
-            <form onSubmit={handleSaveTraffic} style={{ background: "#f8fafb", border: "1px solid #e1e6ea", borderRadius: "8px", padding: "14px 16px", display: "flex", flexDirection: "column", gap: "12px" }}>
-              <h4 style={{ margin: 0, fontSize: "14px", color: "#09212e" }}>Registrar o Actualizar Mes de Tráfico</h4>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1.2fr 1.5fr 1fr", gap: "10px" }}>
-                <label style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "12px", fontWeight: 600 }}>
-                  Año:
+          <div className="capacity-traffic-wrap">
+            <form onSubmit={handleSaveTraffic} className="capacity-traffic-form">
+              <h4>Registrar o Actualizar Mes de Tráfico de Pasajeros</h4>
+              <div className="traffic-form-grid">
+                <div className="capacity-field">
+                  <label htmlFor="traffic-year">Año</label>
                   <input
+                    id="traffic-year"
                     type="number"
                     min="2022"
                     max="2035"
                     value={trafficYear}
                     onChange={(e) => setTrafficYear(Number(e.target.value))}
-                    style={{ padding: "6px 10px", borderRadius: "6px", border: "1px solid #c2cbd1" }}
                     required
                   />
-                </label>
+                </div>
 
-                <label style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "12px", fontWeight: 600 }}>
-                  Mes:
+                <div className="capacity-field">
+                  <label htmlFor="traffic-month">Mes</label>
                   <select
+                    id="traffic-month"
                     value={trafficMonth}
                     onChange={(e) => setTrafficMonth(Number(e.target.value))}
-                    style={{ padding: "6px 10px", borderRadius: "6px", border: "1px solid #c2cbd1" }}
                   >
                     {MONTHS.map((m) => (
                       <option key={m.num} value={m.num}>
@@ -363,55 +354,45 @@ export default function CommercialCapacityModal({
                       </option>
                     ))}
                   </select>
-                </label>
+                </div>
 
-                <label style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "12px", fontWeight: 600 }}>
-                  Pasajeros:
+                <div className="capacity-field">
+                  <label htmlFor="traffic-pax">Pasajeros</label>
                   <input
+                    id="traffic-pax"
                     type="text"
                     placeholder="Ej. 450,000"
                     value={passengers}
                     onChange={(e) => setPassengers(e.target.value)}
-                    style={{ padding: "6px 10px", borderRadius: "6px", border: "1px solid #c2cbd1" }}
                     required
                   />
-                </label>
+                </div>
 
-                <label style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "12px", fontWeight: 600 }}>
-                  Estatus:
+                <div className="capacity-field">
+                  <label htmlFor="traffic-status">Estatus</label>
                   <select
+                    id="traffic-status"
                     value={trafficStatus}
                     onChange={(e) => setTrafficStatus(e.target.value as "real" | "partial" | "projection")}
-                    style={{ padding: "6px 10px", borderRadius: "6px", border: "1px solid #c2cbd1" }}
                   >
                     <option value="real">Real (Cerrado)</option>
                     <option value="partial">Parcial / Preliminar</option>
                     <option value="projection">Proyectado / Estimado</option>
                   </select>
-                </label>
+                </div>
               </div>
 
               {trafficMessage && (
-                <div style={{ padding: "8px 12px", borderRadius: "6px", background: "#e6f4f1", color: "#006250", fontSize: "12px", fontWeight: 600 }}>
+                <div className="capacity-status-alert success">
                   {trafficMessage}
                 </div>
               )}
 
-              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <div className="traffic-form-actions">
                 <button
-                  type="button"
+                  type="submit"
                   disabled={savingTraffic}
-                  onClick={handleSaveTraffic}
-                  style={{
-                    padding: "9px 20px",
-                    background: "#00886f",
-                    color: "#ffffff",
-                    border: "none",
-                    borderRadius: "6px",
-                    fontWeight: 700,
-                    cursor: savingTraffic ? "not-allowed" : "pointer",
-                    fontSize: "13px",
-                  }}
+                  className="btn-save-traffic"
                 >
                   {savingTraffic ? "Guardando..." : "Guardar Registro de Tráfico"}
                 </button>
@@ -419,52 +400,44 @@ export default function CommercialCapacityModal({
             </form>
 
             {/* Historial / Tabla de Registros */}
-            <div style={{ marginTop: "20px" }}>
-              <h4 style={{ margin: "0 0 8px", fontSize: "13px", color: "#405364", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                Historial Registrado ({passengerTraffic.length} registros)
+            <div className="capacity-history-block">
+              <h4>
+                Historial Registrado ({passengerTraffic.length} periodos)
               </h4>
-              <div style={{ maxHeight: "240px", overflowY: "auto", border: "1px solid #dfe4e7", borderRadius: "6px" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", textAlign: "left" }}>
-                  <thead style={{ background: "#f5f7f8", position: "sticky", top: 0 }}>
+              <div className="capacity-table-wrap">
+                <table className="capacity-table">
+                  <thead>
                     <tr>
-                      <th style={{ padding: "8px 12px", borderBottom: "1px solid #dfe4e7" }}>Año</th>
-                      <th style={{ padding: "8px 12px", borderBottom: "1px solid #dfe4e7" }}>Mes</th>
-                      <th style={{ padding: "8px 12px", borderBottom: "1px solid #dfe4e7", textAlign: "right" }}>Pasajeros</th>
-                      <th style={{ padding: "8px 12px", borderBottom: "1px solid #dfe4e7", textAlign: "center" }}>Estatus</th>
-                      <th style={{ padding: "8px 12px", borderBottom: "1px solid #dfe4e7", textAlign: "center" }}>Acción</th>
+                      <th>Año</th>
+                      <th>Mes</th>
+                      <th className="num-col">Pasajeros</th>
+                      <th className="center-col">Estatus</th>
+                      <th className="center-col">Acción</th>
                     </tr>
                   </thead>
                   <tbody>
                     {[...passengerTraffic].reverse().map((rec) => (
-                      <tr key={`${rec.year}-${rec.month}`} style={{ borderBottom: "1px solid #eee" }}>
-                        <td style={{ padding: "7px 12px", fontWeight: 600 }}>{rec.year}</td>
-                        <td style={{ padding: "7px 12px" }}>{rec.monthName || MONTHS.find((m) => m.num === rec.month)?.name || rec.month}</td>
-                        <td style={{ padding: "7px 12px", textAlign: "right", fontWeight: 700, color: "#09212e" }}>
+                      <tr key={`${rec.year}-${rec.month}`}>
+                        <td className="year-cell">{rec.year}</td>
+                        <td className="month-cell">{rec.monthName || MONTHS.find((m) => m.num === rec.month)?.name || rec.month}</td>
+                        <td className="num-col pax-val">
                           {passengerFormat.format(rec.passengers)}
                         </td>
-                        <td style={{ padding: "7px 12px", textAlign: "center" }}>
-                          <span style={{
-                            display: "inline-block",
-                            padding: "2px 8px",
-                            borderRadius: "12px",
-                            fontSize: "11px",
-                            fontWeight: 700,
-                            background: rec.status === "real" ? "#e6f4f1" : rec.status === "partial" ? "#e8f4fd" : "#fef4e6",
-                            color: rec.status === "real" ? "#00886f" : rec.status === "partial" ? "#0284c7" : "#f28c28",
-                          }}>
+                        <td className="center-col">
+                          <span className={`traffic-badge ${rec.status}`}>
                             {rec.status.toUpperCase()}
                           </span>
                         </td>
-                        <td style={{ padding: "7px 12px", textAlign: "center" }}>
+                        <td className="center-col">
                           <button
                             type="button"
+                            className="btn-edit-traffic"
                             onClick={() => {
                               setTrafficYear(rec.year);
                               setTrafficMonth(rec.month);
                               setPassengers(String(rec.passengers));
                               setTrafficStatus(rec.status as "real" | "partial" | "projection");
                             }}
-                            style={{ background: "none", border: "none", color: "#ac182c", cursor: "pointer", fontWeight: 600, fontSize: "11px" }}
                           >
                             Cargar
                           </button>

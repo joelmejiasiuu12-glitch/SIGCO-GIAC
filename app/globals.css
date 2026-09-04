@@ -15435,13 +15435,13 @@ reports-center-simple {
 .user-account-modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 10000;
-  background: rgba(9, 33, 46, 0.42);
-  backdrop-filter: blur(3px);
+  z-index: 99999;
+  background: rgba(9, 33, 46, 0.45);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: flex-start;
   justify-content: flex-end;
-  padding-top: 54px;
+  padding-top: 55px;
   padding-right: 20px;
   animation: modal-backdrop-enter 150ms ease-out both;
 }
@@ -16553,3 +16553,756 @@ textarea.form-control {
   cursor: not-allowed;
 }
 
+/* ==========================================================================
+   PUBLICIDAD: FORMATOS, TABLAS EJECUTIVAS, CRUD Y CONVENIOS
+   ========================================================================== */
+.adv-controls-right-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.adv-add-space-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 9px;
+  background: #ac182c;
+  color: #ffffff;
+  border: 1px solid #8e1022;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(172, 24, 44, 0.25);
+  transition: all 0.15s ease;
+}
+
+.adv-add-space-btn:hover {
+  background: #8e1022;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(172, 24, 44, 0.35);
+}
+
+.adv-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.adv-formats-intro {
+  margin-bottom: 20px;
+  padding: 16px 20px;
+  background: #ffffff;
+  border: 1px solid #dfe4e7;
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgba(9, 33, 46, 0.04);
+}
+
+.adv-formats-intro h3 {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #09212e;
+}
+
+.adv-formats-intro p {
+  margin: 0;
+  font-size: 13.5px;
+  color: #596975;
+}
+
+.adv-formats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.adv-format-card {
+  background: #ffffff;
+  border: 1px solid #dfe4e7;
+  border-radius: 14px;
+  padding: 18px;
+  box-shadow: 0 2px 8px rgba(9, 33, 46, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.adv-format-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(9, 33, 46, 0.08);
+  border-color: #b0c4de;
+}
+
+.format-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.format-big-icon {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.format-count-badge {
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: #f1f5f9;
+  color: #09212e;
+  font-size: 12.5px;
+  font-weight: 700;
+  border: 1px solid #e2e8f0;
+}
+
+.adv-format-card h4 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #09212e;
+}
+
+.format-track {
+  width: 100%;
+  height: 8px;
+  background: #f1f5f9;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.format-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.format-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12.5px;
+  color: #596975;
+  margin-top: auto;
+  padding-top: 6px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.format-filter-link {
+  background: none;
+  border: none;
+  color: #ac182c;
+  font-weight: 700;
+  font-size: 12.5px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  transition: background 0.15s ease;
+}
+
+.format-filter-link:hover {
+  background: #fdf2f4;
+}
+
+/* TABLA EJECUTIVA GSC / PUBLICIDAD / CONTRATOS */
+.gsc-table-responsive-container {
+  width: 100%;
+  overflow-x: auto;
+  background: #ffffff;
+  border: 1px solid #dfe4e7;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(9, 33, 46, 0.04);
+}
+
+.gsc-executive-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  text-align: left;
+}
+
+.gsc-executive-table th {
+  background: #f8fafb;
+  color: #405364;
+  font-weight: 700;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 12px 14px;
+  border-bottom: 2px solid #dfe4e7;
+  white-space: nowrap;
+}
+
+.gsc-executive-table td {
+  padding: 11px 14px;
+  border-bottom: 1px solid #edf1f3;
+  color: #09212e;
+  vertical-align: middle;
+}
+
+.gsc-executive-table tbody tr:hover {
+  background: #f4f8fa;
+}
+
+.cell-contrato strong,
+.cell-nomenclatura strong {
+  color: #ac182c;
+  font-weight: 700;
+  font-family: var(--font-geist-mono, monospace);
+  font-size: 12.5px;
+}
+
+.cell-marca strong {
+  color: #09212e;
+  font-weight: 700;
+}
+
+.adv-units-count-chip {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 12px;
+  background: #edf2f7;
+  color: #2d3748;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.zone-tag {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: #eef4f8;
+  color: #2b506e;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.level-sub {
+  display: block;
+  font-size: 11px;
+  color: #71828d;
+  margin-top: 2px;
+}
+
+.term-text {
+  font-size: 12px;
+  color: #405364;
+  font-weight: 600;
+}
+
+.manager-tag {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: #f3f4f6;
+  color: #4b5563;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.contract-link-btn {
+  background: none;
+  border: 1px solid #cbd5e1;
+  padding: 3px 8px;
+  border-radius: 6px;
+  color: #ac182c;
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: var(--font-geist-mono, monospace);
+  transition: all 0.15s ease;
+}
+
+.contract-link-btn:hover {
+  background: #fdf2f4;
+  border-color: #ac182c;
+}
+
+/* FORMULARIO CRUD MODAL PUBLICIDAD */
+.adv-form-dialog {
+  max-width: 680px !important;
+  width: 95% !important;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.adv-crud-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.adv-form-body {
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.adv-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.adv-form-full {
+  grid-column: 1 / -1;
+}
+
+.adv-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.adv-form-group label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #09212e;
+}
+
+.adv-form-group label .req {
+  color: #ac182c;
+}
+
+.adv-form-group input,
+.adv-form-group select,
+.adv-form-group textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 13.5px;
+  color: #09212e;
+  background: #ffffff;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.adv-form-group input:focus,
+.adv-form-group select:focus,
+.adv-form-group textarea:focus {
+  border-color: #ac182c;
+  box-shadow: 0 0 0 3px rgba(172, 24, 44, 0.12);
+}
+
+.adv-form-group small {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.adv-form-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 14px 20px;
+  border-top: 1px solid #dfe4e7;
+  background: #f8fafb;
+}
+
+.btn-secondary {
+  padding: 8px 18px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-secondary:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.btn-primary {
+  padding: 8px 20px;
+  border-radius: 8px;
+  border: 1px solid #8e1022;
+  background: #ac182c;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(172, 24, 44, 0.2);
+  transition: all 0.15s ease;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #8e1022;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(172, 24, 44, 0.3);
+}
+
+.btn-primary:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.btn-danger-outline {
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid #fca5a5;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-danger-outline:hover {
+  background: #fee2e2;
+  border-color: #ef4444;
+}
+
+/* ==========================================================================
+   MODAL DE CAPACIDAD COMERCIAL Y TRÁFICO EJECUTIVO
+   ========================================================================== */
+.capacity-modal-overlay {
+  z-index: 10000;
+}
+
+.capacity-modal-dialog {
+  max-width: 740px !important;
+  width: 95% !important;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.capacity-nav-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 0 20px;
+  margin-top: 14px;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.capacity-nav-tab {
+  padding: 10px 16px;
+  border: none;
+  background: none;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #64748b;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  transition: all 0.15s ease;
+}
+
+.capacity-nav-tab.active {
+  color: #ac182c;
+  border-bottom-color: #ac182c;
+}
+
+.capacity-form {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.capacity-intro-box {
+  padding: 12px 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.5;
+}
+
+.capacity-intro-box p {
+  margin: 0;
+}
+
+.capacity-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.capacity-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.capacity-field label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.capacity-field label .req {
+  color: #ac182c;
+}
+
+.capacity-field input,
+.capacity-field select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 13.5px;
+  background: #ffffff;
+  color: #0f172a;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.capacity-field input:focus,
+.capacity-field select:focus {
+  border-color: #ac182c;
+  box-shadow: 0 0 0 3px rgba(172, 24, 44, 0.12);
+}
+
+.capacity-field small {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.capacity-computed-val {
+  padding: 8px 12px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.capacity-kpi-banner {
+  background: #fdf2f4;
+  border: 1.5px solid #fecdd3;
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.capacity-kpi-label {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 800;
+  color: #ac182c;
+}
+
+.capacity-kpi-val {
+  font-size: 24px;
+  font-weight: 800;
+  color: #881337;
+  margin-top: 2px;
+}
+
+.capacity-kpi-unit {
+  font-size: 13px;
+  font-weight: 500;
+  color: #9f1239;
+}
+
+.capacity-kpi-coverage {
+  text-align: right;
+}
+
+.coverage-label {
+  display: block;
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+.coverage-percent {
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.coverage-percent.ok {
+  color: #059669;
+}
+
+.coverage-percent.alert {
+  color: #ac182c;
+}
+
+.capacity-status-alert {
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.capacity-status-alert.success {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+}
+
+/* TRAFICO EN MODAL */
+.capacity-traffic-wrap {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.capacity-traffic-form {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.capacity-traffic-form h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.traffic-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr 1.5fr 1.2fr;
+  gap: 12px;
+}
+
+.traffic-form-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.btn-save-traffic {
+  padding: 8px 18px;
+  border-radius: 8px;
+  border: none;
+  background: #00886f;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 6px rgba(0, 136, 111, 0.25);
+}
+
+.btn-save-traffic:hover:not(:disabled) {
+  background: #006b57;
+  transform: translateY(-1px);
+}
+
+.capacity-history-block h4 {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #475569;
+}
+
+.capacity-table-wrap {
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.capacity-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  text-align: left;
+}
+
+.capacity-table th {
+  background: #f1f5f9;
+  padding: 9px 12px;
+  font-weight: 700;
+  color: #475569;
+  border-bottom: 1px solid #e2e8f0;
+  position: sticky;
+  top: 0;
+}
+
+.capacity-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.capacity-table tr:hover {
+  background: #f8fafc;
+}
+
+.num-col {
+  text-align: right;
+}
+
+.center-col {
+  text-align: center;
+}
+
+.year-cell {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.month-cell {
+  font-weight: 600;
+  color: #334155;
+}
+
+.pax-val {
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.traffic-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 10.5px;
+  font-weight: 800;
+}
+
+.traffic-badge.real {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.traffic-badge.partial {
+  background: #f0f9ff;
+  color: #0284c7;
+}
+
+.traffic-badge.projection {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.btn-edit-traffic {
+  background: none;
+  border: none;
+  color: #ac182c;
+  font-weight: 700;
+  font-size: 11.5px;
+  cursor: pointer;
+  padding: 3px 6px;
+  border-radius: 4px;
+}
+
+.btn-edit-traffic:hover {
+  background: #fdf2f4;
+}
