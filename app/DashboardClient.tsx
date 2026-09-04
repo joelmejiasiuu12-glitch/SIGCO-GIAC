@@ -1,9 +1,60 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Component, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from "react";
 import DataUploadModal from "./components/DataUploadModal";
+import LocalFormModal from "./components/LocalFormModal";
+
+class SafeModuleBoundary extends Component<
+  { children: ReactNode; onReset?: () => void; moduleName?: string },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: ReactNode; onReset?: () => void; moduleName?: string }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("Error al renderizar módulo:", error, info);
+  }
+  componentDidUpdate(prevProps: { moduleName?: string }) {
+    if (prevProps.moduleName !== this.props.moduleName && this.state.hasError) {
+      this.setState({ hasError: false, error: null });
+    }
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <section style={{ margin: "32px auto", maxWidth: "650px", textAlign: "center", padding: "36px 24px", background: "#ffffff", borderRadius: "12px", border: "1px solid #dfe4e7", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}>
+          <div style={{ fontSize: "36px", marginBottom: "12px" }}>⚠️</div>
+          <h3 style={{ color: "#ac182c", fontSize: "18px", fontWeight: 800, margin: "0 0 8px 0" }}>
+            No se pudo desplegar el módulo {this.props.moduleName || ""}
+          </h3>
+          <p style={{ color: "#5c6f84", fontSize: "13px", lineHeight: "1.5", margin: "0 0 20px 0" }}>
+            {this.state.error?.message || "Ocurrió un error inesperado al procesar la información."}
+          </p>
+          <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
+            <button
+              type="button"
+              className="primary-button"
+              onClick={() => {
+                this.setState({ hasError: false, error: null });
+                if (this.props.onReset) this.props.onReset();
+              }}
+            >
+              Reintentar carga
+            </button>
+          </div>
+        </section>
+      );
+    }
+    return this.props.children;
+  }
+}
+import ContractFormModal from "./components/ContractFormModal";
 import CommercialAlertsModal, { buildCommercialAlerts } from "./components/CommercialAlerts";
-import ContractCenter from "./components/ContractCenter";
+import ContractCenter, { buildContracts, recordMatchesZone } from "./components/ContractCenter";
 import DirectoryAnalytics from "./components/DirectoryAnalytics";
 import FinanceCenter from "./components/FinanceCenter";
 import GlobalSummary from "./components/GlobalSummary";
@@ -11,7 +62,12 @@ import InstitutionalCenter from "./components/InstitutionalCenter";
 import IntelligenceCenter, { type IntelligenceView } from "./components/IntelligenceCenter";
 import ReportsCenter from "./components/ReportsCenter";
 import SummaryDashboard from "./components/SummaryDashboard";
-import { locationOptions, type AnalysisTarget, type EtpCommercialCapacityData, type LocalRecord, type PassengerTrafficRecord } from "./types";
+import LoginScreen from "./components/LoginScreen";
+import GscDashboard from "./components/GscDashboard";
+import AdvertisingCenter from "./components/AdvertisingCenter";
+import CommercialCapacityModal from "./components/CommercialCapacityModal";
+import { getSavedSession, saveSession, clearSession, type AuthUser } from "./types/auth";
+import { locationOptions, type AdvertisingSpaceRecord, type AnalysisTarget, type EtpCommercialCapacityData, type LocalRecord, type PassengerTrafficRecord } from "./types";
 
 type FilterKey =
   | "lado"
@@ -25,7 +81,7 @@ type FilterKey =
   | "gerencia";
 
 type SortKey = "nomenclatura" | "marca" | "metraje" | "estatus";
-type PrimaryModule = "home" | "locals" | "contracts" | "finances" | "reports" | "intelligence";
+type PrimaryModule = "home" | "locals" | "contracts" | "finances" | "reports" | "advertising" | "intelligence" | "gsc_dashboard";
 type HomeView = "global" | "zone";
 type LocalView = "summary" | "directory";
 type ContractView = "summary" | "preformalization" | "formalization" | "formalized" | "cancelled" | "expired" | "agreements";
@@ -188,9 +244,9 @@ function EmptyState() {
 function EmptyLocationState({ onUpload }: { onUpload: () => void }) {
   return (
     <section className="empty-location">
-      <span className="empty-location-mark">XLSX</span>
-      <h2>No hay datos cargados en esta sesión</h2>
-      <p>Selecciona el libro consolidado de Excel para habilitar el resumen, los filtros y el directorio.</p>
+      <span className="empty-location-mark">SIGCO</span>
+      <h2>Cargando locales comerciales...</h2>
+      <p>Cargando el inventario comercial oficial de la Subdirección.</p>
       <button type="button" className="primary-button" onClick={onUpload}>Cargar Excel local</button>
     </section>
   );
@@ -205,12 +261,16 @@ export default function DashboardClient() {
   const [analysisTarget, setAnalysisTarget] = useState<AnalysisTarget>("capacity");
   const [locationId, setLocationId] = useState("etp");
   const [financeLocationId, setFinanceLocationId] = useState("etp");
+  const [contractLocationId, setContractLocationId] = useState("all");
   const [financeSubTab, setFinanceSubTab] = useState<"billed_vs_recovered" | "overdue_debt">("billed_vs_recovered");
   const [datasets, setDatasets] = useState<Dataset>(emptyDatasets);
   const [standaloneContractRecords, setStandaloneContractRecords] = useState<LocalRecord[]>([]);
-  const [records, setRecords] = useState<LocalRecord[]>([]);
+  const records = useMemo(() => datasets[locationId] ?? [], [datasets, locationId]);
   const [etpCommercialCapacity, setEtpCommercialCapacity] = useState<EtpCommercialCapacityData | null>(null);
   const [passengerTraffic, setPassengerTraffic] = useState<PassengerTrafficRecord[]>([]);
+  const [advertisingSpaces, setAdvertisingSpaces] = useState<AdvertisingSpaceRecord[]>([]);
+  const [advertisingSearch, setAdvertisingSearch] = useState<string>("");
+  const [advertisingSelectedUnitCode, setAdvertisingSelectedUnitCode] = useState<string | null>(null);
   const [sourceFile, setSourceFile] = useState("Sin archivo cargado");
   const [sourceUpdatedAt, setSourceUpdatedAt] = useState<string | null>(null);
   const [loadingData, setLoadingData] = useState(false);
@@ -218,6 +278,408 @@ export default function DashboardClient() {
   const [showUpload, setShowUpload] = useState(false);
   const [showCommercialAlerts, setShowCommercialAlerts] = useState(false);
   const [showInstitutional, setShowInstitutional] = useState(false);
+  const [isLocalModalOpen, setIsLocalModalOpen] = useState(false);
+  const [editingLocalRecord, setEditingLocalRecord] = useState<LocalRecord | null>(null);
+  const [isContractModalOpen, setIsContractModalOpen] = useState(false);
+  const [editingContractRecord, setEditingContractRecord] = useState<LocalRecord | null>(null);
+  const [showCapacityModal, setShowCapacityModal] = useState(false);
+
+  // Control de sesión institucional
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [isClientMounted, setIsClientMounted] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setIsClientMounted(true);
+    try {
+      const stored = getSavedSession();
+      if (stored) {
+        setCurrentUser(stored);
+        if (stored.role === "gerente_gsc") {
+          setActiveModule("gsc_dashboard");
+        }
+      }
+    } catch {
+      // Ignorar errores
+    }
+  }, []);
+
+  // Cierre al hacer clic fuera del menú de usuario
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+    if (isUserMenuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isUserMenuOpen]);
+
+  const handleLoginSuccess = (user: AuthUser) => {
+    setCurrentUser(user);
+    saveSession(user);
+    if (user.role === "gerente_gsc") {
+      setActiveModule("gsc_dashboard");
+    }
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    clearSession();
+    setActiveModule("home");
+  };
+
+  // Carga inicial automática de locales desde Cloudflare D1
+  useEffect(() => {
+    fetch("/api/locales")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && data.success && Array.isArray(data.locales) && data.locales.length > 0) {
+          const newDatasets: Dataset = emptyDatasets();
+          data.locales.forEach((l: any) => {
+            const locId = l.zona_id;
+            if (!newDatasets[locId]) {
+              newDatasets[locId] = [];
+            }
+            const rec: LocalRecord = {
+              id: l.id,
+              nomenclatura: l.nomenclatura,
+              lado: l.lado || "N/A",
+              area: l.area || "N/A",
+              modulo: l.modulo || "N/A",
+              metraje: l.metraje !== null ? Number(l.metraje) : null,
+              metrajeOriginal: l.metraje_original || l.metraje,
+              areaComercial: l.tipo_espacio || "Local",
+              nivel: l.nivel || "1",
+              estatus: l.estatus || "DISPONIBLE",
+              situacion: l.situacion || null,
+              marca: l.marca || null,
+              subdireccion: l.subdireccion || null,
+              gerencia: l.gerencia || null,
+              giroIata: l.giro_iata || null,
+              giroOperativo: l.giro_operativo || null,
+              giroIndaabin: l.giro_indaabin || null,
+              observaciones: l.observaciones || null,
+              fechaFormalizacion: l.fecha_formalizacion || null,
+              fechaConclusion: l.fecha_conclusion || null,
+              contractNumber: l.contract_number || null,
+              contractPending: Boolean(l.contract_pending),
+              commercialLine: l.commercial_line || null,
+              commercialSubline: l.commercial_subline || null,
+              costPerM2: l.cost_per_m2 || null,
+              monthlyRent: l.monthly_rent || null,
+              participationRate: l.participation_rate || null,
+              participationNotes: l.participation_notes || null,
+              operationsStartDate: l.operations_start_date || null,
+              signatureDate: l.signature_date || null,
+              contractTerm: l.contract_term || null,
+              renewalDate: l.renewal_date || null,
+              guaranteeStatus: l.guarantee_status || null,
+              liabilityPolicyStatus: l.liability_policy_status || null,
+              projectStatus: l.project_status || null,
+              contractStatus: l.contract_status || null,
+              operationalStatus: l.operational_status || null,
+              contactData: l.contact_data || null,
+              manager: l.manager || null,
+              contractLocationId: l.zona_id,
+            };
+            newDatasets[locId].push(rec);
+          });
+
+          if (Array.isArray(data.advertisingSpaces) && data.advertisingSpaces.length > 0) {
+            setAdvertisingSpaces(data.advertisingSpaces);
+          }
+
+          setDatasets(newDatasets);
+          setSourceFile(`Padrón Oficial (${data.locales.length} locales)`);
+          setSourceUpdatedAt(new Date().toISOString());
+
+          if (Array.isArray(data.contracts) && data.contracts.length > 0) {
+            const mappedContracts: LocalRecord[] = data.contracts.map((c: any, idx: number) => ({
+              id: 10000 + idx,
+              nomenclatura: (c.nomenclatura && c.nomenclatura !== "N/A" && c.nomenclatura !== c.contractNumber) ? c.nomenclatura : "Sin local asignado",
+              lado: c.lado || "N/A",
+              area: c.area || "N/A",
+              modulo: c.modulo || "N/A",
+              metraje: c.metraje !== null && c.metraje !== undefined ? Number(c.metraje) : null,
+              metrajeOriginal: c.metraje,
+              areaComercial: c.areaComercial || "Local",
+              nivel: c.nivel || "1",
+              estatus: c.contractStatus || "FORMALIZADO",
+              situacion: c.contractStatus || null,
+              marca: c.marca || null,
+              razonSocial: c.razonSocial || null,
+              subdireccion: "SVS COM",
+              gerencia: c.gerencia || (c.contractNumber && c.contractNumber.includes("GEP") ? "Gerencia de Espacios Publicitarios" : "Gerencia de Servicios Comerciales"),
+              giroIata: c.giroIata || null,
+              giroOperativo: c.giroOperativo || null,
+              giroIndaabin: c.giroIndaabin || null,
+              observaciones: c.observaciones || null,
+              fechaFormalizacion: c.fechaFormalizacion || c.signatureDate || null,
+              fechaConclusion: c.fechaConclusion || null,
+              contractNumber: c.contractNumber || null,
+              contractPending: false,
+              commercialLine: c.commercialLine || null,
+              commercialSubline: c.commercialSubline || null,
+              costPerM2: c.costPerM2 !== null && c.costPerM2 !== undefined ? Number(c.costPerM2) : null,
+              monthlyRent: c.monthlyRent !== null && c.monthlyRent !== undefined ? Number(c.monthlyRent) : null,
+              participationRate: c.participationRate !== null && c.participationRate !== undefined ? Number(c.participationRate) : null,
+              participationNotes: c.participationNotes || null,
+              operationsStartDate: c.operationsStartDate || null,
+              signatureDate: c.signatureDate || null,
+              contractTerm: c.contractTerm || null,
+              renewalDate: c.renewalDate || null,
+              guaranteeStatus: c.guaranteeStatus || null,
+              liabilityPolicyStatus: c.liabilityPolicyStatus || null,
+              projectStatus: c.projectStatus || null,
+              contractStatus: c.contractStatus || null,
+              operationalStatus: c.contractStatus || null,
+              contactData: c.contactData || null,
+              manager: c.manager || null,
+              contractStage: c.contractStage || "formalized",
+              contractSourceSheet: "Padrón Oficial",
+              contractLocationId: c.contractLocationId || "etp",
+              contractLocationName: c.contractLocationName || "Edificio Terminal de Pasajeros (ETP)",
+              zonaComercial: c.zonaComercial || "ETP",
+              daysRemaining: c.daysRemaining !== null && c.daysRemaining !== undefined ? Number(c.daysRemaining) : null,
+            }));
+            setStandaloneContractRecords(mappedContracts);
+          }
+
+          if (data.etpCommercialCapacity) {
+            setEtpCommercialCapacity(data.etpCommercialCapacity);
+          }
+
+          if (Array.isArray(data.passengerTraffic) && data.passengerTraffic.length > 0) {
+            setPassengerTraffic(data.passengerTraffic);
+          }
+        }
+      })
+      .catch((err) => {
+        console.warn("Entorno local sin conexión D1, operando en memoria:", err);
+      });
+
+    fetch("/api/espacios-publicitarios")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && data.success && Array.isArray(data.advertisingSpaces) && data.advertisingSpaces.length > 0) {
+          setAdvertisingSpaces(data.advertisingSpaces);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleOpenAddLocal = () => {
+    setEditingLocalRecord(null);
+    setIsLocalModalOpen(true);
+  };
+
+  const handleOpenEditLocal = (record: LocalRecord) => {
+    setEditingLocalRecord(record);
+    setIsLocalModalOpen(true);
+  };
+
+  const handleSaveLocal = async (savedRecord: LocalRecord) => {
+    const targetLocId = savedRecord.contractLocationId || locationId;
+    const isEdit = Boolean(editingLocalRecord);
+
+    // 1. Actualización reactiva inmediata en estado de React
+    setDatasets((prev) => {
+      const list = prev[targetLocId] ?? [];
+      const exists = list.some((r) => r.id === savedRecord.id || r.nomenclatura === savedRecord.nomenclatura);
+      let newList: LocalRecord[];
+      if (exists) {
+        newList = list.map((r) => (r.id === savedRecord.id || r.nomenclatura === savedRecord.nomenclatura ? savedRecord : r));
+      } else {
+        newList = [savedRecord, ...list];
+      }
+      return {
+        ...prev,
+        [targetLocId]: newList,
+      };
+    });
+
+    // 2. Persistencia remota en Cloudflare D1
+    try {
+      await fetch("/api/locales", {
+        method: isEdit ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...savedRecord,
+          zona_id: targetLocId,
+        }),
+      });
+    } catch (err) {
+      console.warn("Error guardando local en D1:", err);
+    }
+  };
+
+  const handleDeleteLocal = async (record: LocalRecord) => {
+    if (!window.confirm(`¿Confirmas la eliminación del local ${record.nomenclatura}? Esta acción es permanente.`)) {
+      return;
+    }
+    const targetLocId = record.contractLocationId || locationId;
+
+    // 1. Actualización en React
+    setDatasets((prev) => {
+      const list = prev[targetLocId] ?? [];
+      return {
+        ...prev,
+        [targetLocId]: list.filter((r) => r.id !== record.id && r.nomenclatura !== record.nomenclatura),
+      };
+    });
+
+    // 2. Eliminación en Cloudflare D1
+    try {
+      await fetch(`/api/locales?id=${encodeURIComponent(record.id)}&nomenclatura=${encodeURIComponent(record.nomenclatura)}`, {
+        method: "DELETE",
+      });
+    } catch (err) {
+      console.warn("Error eliminando local en D1:", err);
+    }
+  };
+
+  const handleOpenAddContract = () => {
+    setEditingContractRecord(null);
+    setIsContractModalOpen(true);
+  };
+
+  const handleOpenEditContract = (contract: any) => {
+    const existing = standaloneContractRecords.find(
+      (r) => r.contractNumber === contract.contractNumber
+    ) || contract.locals?.[0];
+
+    const recordToEdit: LocalRecord = existing ? { ...existing } : {
+      id: Date.now(),
+      nomenclatura: contract.locals?.[0]?.nomenclatura || contract.contractNumber || "",
+      lado: contract.locals?.[0]?.lado || "N/A",
+      area: contract.locals?.[0]?.area || "N/A",
+      modulo: contract.locals?.[0]?.modulo || "N/A",
+      metraje: contract.locals?.[0]?.metraje ?? null,
+      metrajeOriginal: contract.locals?.[0]?.metrajeOriginal ?? null,
+      areaComercial: contract.locals?.[0]?.areaComercial || "Local",
+      nivel: contract.locals?.[0]?.nivel || "1",
+      estatus: contract.contractStatus || "FORMALIZADO",
+      situacion: contract.contractStatus || null,
+      marca: contract.brand || null,
+      razonSocial: contract.razonSocial || null,
+      subdireccion: "SVS COM",
+      gerencia: contract.gerencia || "Gerencia de Servicios Comerciales",
+      giroIata: contract.locals?.[0]?.giroIata ?? null,
+      giroOperativo: contract.commercialLine ?? null,
+      giroIndaabin: contract.locals?.[0]?.giroIndaabin ?? null,
+      observaciones: contract.locals?.[0]?.observaciones ?? null,
+      fechaFormalizacion: contract.signatureDate || null,
+      fechaConclusion: contract.renewalDate || null,
+      contractNumber: contract.contractNumber || null,
+      contractPending: contract.pending || false,
+      commercialLine: contract.commercialLine || null,
+      commercialSubline: contract.commercialSubline || null,
+      costPerM2: contract.costPerM2 ?? null,
+      monthlyRent: contract.monthlyRent ?? null,
+      participationRate: contract.participationRate ?? null,
+      participationNotes: contract.participationNotes ?? null,
+      operationsStartDate: contract.operationsStartDate || null,
+      signatureDate: contract.signatureDate || null,
+      contractTerm: contract.contractTerm || null,
+      renewalDate: contract.renewalDate || null,
+      guaranteeStatus: contract.guaranteeStatus || null,
+      liabilityPolicyStatus: contract.liabilityPolicyStatus || null,
+      projectStatus: contract.projectStatus || null,
+      contractStatus: contract.contractStatus || null,
+      operationalStatus: contract.operationalStatus || null,
+      contactData: contract.locals?.[0]?.contactData ?? null,
+      manager: contract.manager || null,
+      contractStage: "formalized",
+      contractSourceSheet: "Padrón Oficial",
+      contractLocationId: contract.locationId || "etp",
+      contractLocationName: contract.locationName || "Edificio Terminal de Pasajeros (ETP)",
+      zonaComercial: contract.zonaComercial || "ETP",
+      daysRemaining: contract.daysRemaining ?? null,
+    };
+
+    setEditingContractRecord(recordToEdit);
+    setIsContractModalOpen(true);
+  };
+
+  const handleSaveContract = async (savedRecord: LocalRecord) => {
+    const numContrato = savedRecord.contractNumber;
+    if (!numContrato) return;
+
+    // 1. Actualización reactiva en React
+    setStandaloneContractRecords((prev) => {
+      const exists = prev.some((r) => r.contractNumber === numContrato);
+      if (exists) {
+        return prev.map((r) => (r.contractNumber === numContrato ? { ...r, ...savedRecord } : r));
+      }
+      return [savedRecord, ...prev];
+    });
+
+    // Si el contrato está vinculado a un local físico, sincronizar también el local
+    if (savedRecord.nomenclatura) {
+      setDatasets((prev) => {
+        const next = { ...prev };
+        Object.keys(next).forEach((zId) => {
+          next[zId] = next[zId].map((loc) => {
+            if (loc.nomenclatura === savedRecord.nomenclatura) {
+              return {
+                ...loc,
+                marca: savedRecord.marca ?? loc.marca,
+                contractNumber: savedRecord.contractNumber ?? loc.contractNumber,
+                monthlyRent: savedRecord.monthlyRent ?? loc.monthlyRent,
+                costPerM2: savedRecord.costPerM2 ?? loc.costPerM2,
+                participationRate: savedRecord.participationRate ?? loc.participationRate,
+                renewalDate: savedRecord.renewalDate ?? loc.renewalDate,
+                manager: savedRecord.manager ?? loc.manager,
+              };
+            }
+            return loc;
+          });
+        });
+        return next;
+      });
+    }
+
+    // 2. Persistencia en Cloudflare D1
+    try {
+      await fetch("/api/contratos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(savedRecord),
+      });
+    } catch (err) {
+      console.warn("Error guardando contrato en D1:", err);
+    }
+  };
+
+  const handleDeleteContract = async (contract: any) => {
+    const numContrato = contract.contractNumber;
+    if (!numContrato) return;
+
+    if (!window.confirm(`¿Confirmas la eliminación del contrato ${numContrato} (${contract.brand})? Esta acción es permanente.`)) {
+      return;
+    }
+
+    // 1. Actualización reactiva en React
+    setStandaloneContractRecords((prev) =>
+      prev.filter((r) => r.contractNumber !== numContrato)
+    );
+
+    // 2. Eliminación en Cloudflare D1
+    try {
+      await fetch(`/api/contratos?contractNumber=${encodeURIComponent(numContrato)}`, {
+        method: "DELETE",
+      });
+    } catch (err) {
+      console.warn("Error eliminando contrato en D1:", err);
+    }
+  };
+
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState(initialFilters);
   const [minArea, setMinArea] = useState("");
@@ -227,14 +689,61 @@ export default function DashboardClient() {
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [showAllFilters, setShowAllFilters] = useState(false);
+  const [contractSearchQuery, setContractSearchQuery] = useState<string>("");
+  const [contractGerenciaFilter, setContractGerenciaFilter] = useState<string>("all");
   const [isModuleMenuFixed, setIsModuleMenuFixed] = useState(false);
   const moduleMenuSentinelRef = useRef<HTMLDivElement>(null);
+
+  const [isBoardroomMode, setIsBoardroomMode] = useState<boolean>(false);
+
+  const toggleBoardroomMode = () => {
+    setIsBoardroomMode((prev) => {
+      const next = !prev;
+      if (typeof document !== "undefined") {
+        if (next && !document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        } else if (!next && document.fullscreenElement) {
+          document.exitFullscreen().catch(() => {});
+        }
+      }
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement && isBoardroomMode) {
+        setIsBoardroomMode(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isBoardroomMode) {
+        setIsBoardroomMode(false);
+        if (document.fullscreenElement) {
+          document.exitFullscreen().catch(() => {});
+        }
+      }
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isBoardroomMode]);
 
   const currentLocation = locationOptions.find((location) => location.id === locationId) ?? locationOptions[0];
   const totalSessionRecords = Object.values(datasets).reduce((total, dataset) => total + dataset.length, 0);
   const allContractRecords = useMemo(
-    () => [...Object.values(datasets).flat(), ...standaloneContractRecords],
+    () => {
+      if (standaloneContractRecords.length) return standaloneContractRecords;
+      return Object.values(datasets).flat().filter((r) => Boolean(r.contractSourceSheet || r.contractStage));
+    },
     [datasets, standaloneContractRecords],
+  );
+  const allAggregatedContracts = useMemo(
+    () => buildContracts(allContractRecords),
+    [allContractRecords],
   );
   const commercialAlerts = useMemo(() => buildCommercialAlerts(datasets.etp ?? []), [datasets]);
   const financeRecords = useMemo(
@@ -243,8 +752,21 @@ export default function DashboardClient() {
   );
   const financeLocation = locationOptions.find((location) => location.id === financeLocationId);
   const financeScopeLabel = financeLocationId === "all" ? "Todas las zonas comerciales" : financeLocation?.name ?? "Zona comercial";
+  const contractRecords = useMemo(() => {
+    if (contractLocationId === "all") return allContractRecords;
+    if (standaloneContractRecords.length) {
+      return standaloneContractRecords.filter((r) => recordMatchesZone(r, contractLocationId));
+    }
+    return datasets[contractLocationId] ?? [];
+  }, [allContractRecords, contractLocationId, datasets, standaloneContractRecords]);
+
+  const contractLocation = locationOptions.find((location) => location.id === contractLocationId);
+  const contractScopeLabel = contractLocationId === "all" ? "Todas las zonas comerciales" : contractLocation?.name ?? "Zona comercial";
   const primaryFilterKeys = primaryFiltersByLocation[locationId] ?? primaryFiltersByLocation.etp;
   const advancedFilterKeys = advancedFiltersByLocation[locationId] ?? [];
+  const availableLocalsList = useMemo(() => Object.values(datasets).flat().map((l) => l.nomenclatura).filter(Boolean), [datasets]);
+
+
 
   useEffect(() => {
     const hasSessionData = Object.values(datasets).some((dataset) => dataset.length > 0);
@@ -365,7 +887,7 @@ export default function DashboardClient() {
   const changeLocation = (value: string) => {
     if (value === locationId) return;
     setLocationId(value);
-    setRecords([...(datasets[value] ?? [])]);
+    setContractLocationId(value);
     setLoadingData(false);
     setDataWarning("");
     setSearch("");
@@ -444,9 +966,13 @@ export default function DashboardClient() {
 
 
 
-  const isGlobalContext = activeModule === "contracts" || activeModule === "finances" || activeModule === "reports" || (activeModule === "intelligence" && intelligenceView !== "locals_occupancy") || (activeModule === "home" && homeView === "global");
-  const contextRecordCount = activeModule === "finances" ? financeRecords.length : isGlobalContext ? totalSessionRecords : records.length;
-  const heroTitle = activeModule === "home"
+  const isGlobalContext = (activeModule === "contracts" && contractLocationId === "all") || (activeModule === "finances" && financeLocationId === "all") || activeModule === "reports" || (activeModule === "intelligence" && locationId === "all") || (activeModule === "home" && homeView === "global") || activeModule === "advertising";
+  const contextRecordCount = activeModule === "advertising" ? advertisingSpaces.length : activeModule === "finances" ? financeRecords.length : activeModule === "contracts" ? contractRecords.length : isGlobalContext ? totalSessionRecords : records.length;
+  const heroTitle = activeModule === "gsc_dashboard"
+    ? "Tablero Ejecutivo de Servicios Comerciales"
+    : activeModule === "advertising"
+    ? "Inventario y Gestión de Espacios Publicitarios"
+    : activeModule === "home"
     ? homeView === "global" ? "Resumen global" : `Resumen de ${currentLocation.shortName}`
     : activeModule === "locals"
       ? `Directorio de ${currentLocation.shortName}`
@@ -455,9 +981,13 @@ export default function DashboardClient() {
         : activeModule === "finances"
           ? "Resumen financiero"
           : activeModule === "intelligence"
-            ? intelligenceView === "locals_occupancy" ? `Análisis de ${currentLocation.shortName}` : intelligenceView === "contracts_validity" ? "Análisis de Contratos y Vigencias" : intelligenceView === "finance_collections" ? "Análisis Financiero y Cobranza" : "Matriz 7 Zonas"
+            ? intelligenceView === "locals_occupancy" ? `Análisis de ${currentLocation.shortName}` : intelligenceView === "finance_collections" ? "Análisis Financiero y Cobranza" : "Matriz 7 Zonas"
             : "Centro de Reportes";
-  const heroDescription = activeModule === "home"
+  const heroDescription = activeModule === "gsc_dashboard"
+    ? "Supervisión directiva de contratos comerciales, ocupación física, calificación de marcas y recaudación en el AIFA."
+    : activeModule === "advertising"
+    ? "Supervisión de pantallas digitales, tótems, videowalls, backlights y soportes publicitarios concesionados en el AIFA."
+    : activeModule === "home"
     ? homeView === "global"
       ? "Una visión consolidada de las 7 zonas comerciales, con indicadores separados de inventario, ocupación y gestión contractual."
       : `Panorama ejecutivo de ${currentLocation.name}, con acceso directo a sus locales, contratos y puntos de atención.`
@@ -480,15 +1010,97 @@ export default function DashboardClient() {
 
   const openModule = (module: PrimaryModule) => {
     if (module === "finances" && activeModule !== "finances") setFinanceLocationId(isGlobalContext ? "all" : locationId);
+    if (module === "contracts" && activeModule !== "contracts") {
+      setContractLocationId("all");
+      setContractGerenciaFilter("all");
+      setContractSearchQuery("");
+      setContractView("summary");
+    }
     if (module === "intelligence" && activeModule !== "intelligence") setIntelligenceView("locals_occupancy");
     setActiveModule(module);
     setExpandedId(null);
     setPage(1);
   };
 
+  const handleOpenLocalFromAnywhere = (nomenclature: string, sourceLocationId: string | null) => {
+    const rawNom = (nomenclature || "").trim();
+    if (!rawNom) return;
+
+    // A. Detectar si corresponde a un espacio publicitario de GEP
+    const isAdv =
+      sourceLocationId === "gep" ||
+      advertisingSpaces.some(
+        (a) =>
+          (a.codigo_nomenclatura && a.codigo_nomenclatura.trim().toLowerCase() === rawNom.toLowerCase()) ||
+          (a.id_unidad && a.id_unidad.trim().toLowerCase() === rawNom.toLowerCase())
+      );
+
+    if (isAdv) {
+      setAdvertisingSearch(rawNom);
+      setAdvertisingSelectedUnitCode(rawNom);
+      setActiveModule("advertising");
+      return;
+    }
+
+    // B. Si es un local comercial (GSC), redirigir al menú 02 Locales
+    let targetZone = sourceLocationId && datasets[sourceLocationId] ? sourceLocationId : null;
+    if (!targetZone || targetZone === "all") {
+      for (const [zId, list] of Object.entries(datasets)) {
+        if (list.some((l) => l.nomenclatura.trim().toLowerCase() === rawNom.toLowerCase())) {
+          targetZone = zId;
+          break;
+        }
+      }
+    }
+    if (!targetZone || targetZone === "all") targetZone = "etp";
+
+    // 2. Limpiar filtros previos para evitar que el local quede oculto
+    setFilters(initialFilters);
+    setMinArea("");
+    setMaxArea("");
+
+    // 3. Fijar la zona comercial correspondiente
+    setLocationId(targetZone);
+    setContractLocationId(targetZone);
+
+    // 4. Configurar la búsqueda exacta
+    setSearch(rawNom);
+
+    // 5. Encontrar el registro y dejarlo expandido (seleccionado)
+    const foundLocal = (datasets[targetZone] ?? []).find(
+      (l) => l.nomenclatura.trim().toLowerCase() === rawNom.toLowerCase()
+    );
+    if (foundLocal) {
+      setExpandedId(foundLocal.id);
+    } else {
+      setExpandedId(null);
+    }
+
+    // 6. Activar directamente el módulo de locales
+    setActiveModule("locals");
+    setLocalView("directory");
+    setPage(1);
+
+    // 7. Scroll automático hacia el directorio de locales
+    setTimeout(() => {
+      const el = document.getElementById("directorio");
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 120);
+  };
+
   const handleScopeChange = (value: string) => {
     if (activeModule === "finances") {
       setFinanceLocationId(value);
+      return;
+    }
+    if (activeModule === "contracts") {
+      setContractLocationId(value);
+      return;
+    }
+    if (activeModule === "intelligence") {
+      if (value !== "all") changeLocation(value);
+      setLocationId(value);
+      setContractLocationId(value);
       return;
     }
     if (value === "all") {
@@ -505,18 +1117,61 @@ export default function DashboardClient() {
 
   const renderModuleLinks = (fixed = false) => (
     <div className="module-links">
+      {(currentUser?.role === "gerente_gsc" || currentUser?.role === "subdirectora") && (
+        <button
+          tabIndex={fixed ? 0 : isModuleMenuFixed ? -1 : undefined}
+          className={`gsc-dashboard-tab-btn ${activeModule === "gsc_dashboard" ? "active" : ""}`}
+          type="button"
+          onClick={() => openModule("gsc_dashboard")}
+        >
+          <span>⭐</span>Tablero GSC
+        </button>
+      )}
       <button tabIndex={fixed ? 0 : isModuleMenuFixed ? -1 : undefined} className={activeModule === "home" ? "active" : ""} type="button" onClick={() => openModule("home")}><span>01</span>Inicio</button>
       <button tabIndex={fixed ? 0 : isModuleMenuFixed ? -1 : undefined} className={activeModule === "locals" ? "active" : ""} type="button" onClick={() => openModule("locals")}><span>02</span>Locales</button>
-      <button tabIndex={fixed ? 0 : isModuleMenuFixed ? -1 : undefined} className={activeModule === "contracts" ? "active" : ""} type="button" onClick={() => openModule("contracts")}><span>03</span>Contratos</button>
-      <button tabIndex={fixed ? 0 : isModuleMenuFixed ? -1 : undefined} className={activeModule === "finances" ? "active" : ""} type="button" onClick={() => openModule("finances")}><span>04</span>Finanzas</button>
-      <button tabIndex={fixed ? 0 : isModuleMenuFixed ? -1 : undefined} className={activeModule === "intelligence" ? "active" : ""} type="button" onClick={() => openModule("intelligence")}><span>05</span>Análisis</button>
+      <button tabIndex={fixed ? 0 : isModuleMenuFixed ? -1 : undefined} className={activeModule === "advertising" ? "active" : ""} type="button" onClick={() => openModule("advertising")}><span>03</span>Publicidad</button>
+      <button tabIndex={fixed ? 0 : isModuleMenuFixed ? -1 : undefined} className={activeModule === "contracts" ? "active" : ""} type="button" onClick={() => openModule("contracts")}><span>04</span>Contratos</button>
+      <button tabIndex={fixed ? 0 : isModuleMenuFixed ? -1 : undefined} className={activeModule === "finances" ? "active" : ""} type="button" onClick={() => openModule("finances")}><span>05</span>Finanzas</button>
       <button tabIndex={fixed ? 0 : isModuleMenuFixed ? -1 : undefined} className={activeModule === "reports" ? "active" : ""} type="button" onClick={() => openModule("reports")}><span>06</span>Reportes</button>
+      <button tabIndex={fixed ? 0 : isModuleMenuFixed ? -1 : undefined} className={activeModule === "intelligence" ? "active" : ""} type="button" onClick={() => openModule("intelligence")}><span>07</span>Análisis</button>
     </div>
   );
 
+  if (isClientMounted && !currentUser) {
+    return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
+  }
+
   return (
-    <main>
-      <header className="top-shell">
+    <main className={isBoardroomMode ? "boardroom-active-main" : ""}>
+      {isBoardroomMode && (
+        <button
+          type="button"
+          onClick={toggleBoardroomMode}
+          title="Salir de Sala de Juntas (Esc)"
+          style={{
+            position: "fixed",
+            top: "14px",
+            right: "16px",
+            zIndex: 999999,
+            background: "#ac182c",
+            color: "#ffffff",
+            border: "none",
+            borderRadius: "8px",
+            padding: "8px 16px",
+            fontSize: "12px",
+            fontWeight: 800,
+            cursor: "pointer",
+            boxShadow: "0 4px 14px rgba(0,0,0,0.25)",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "6px",
+          }}
+        >
+          ✕ Salir de Sala de Juntas (Esc)
+        </button>
+      )}
+      {!isBoardroomMode && (
+        <header className={`top-shell ${activeModule === "gsc_dashboard" ? "top-shell-gsc" : ""}`}>
         <div className="top-nav">
           <div className="brand">
             <img
@@ -534,7 +1189,7 @@ export default function DashboardClient() {
           <div className="top-context-actions">
             <label className="compact-location-picker">
               <span>Zona comercial</span>
-              <select value={activeModule === "finances" ? financeLocationId : isGlobalContext ? "all" : locationId} onChange={(event) => handleScopeChange(event.target.value)} aria-label="Zona comercial">
+              <select value={activeModule === "finances" ? financeLocationId : activeModule === "contracts" ? contractLocationId : activeModule === "intelligence" ? locationId : isGlobalContext ? "all" : locationId} onChange={(event) => handleScopeChange(event.target.value)} aria-label="Zona comercial">
                 <option value="all">Todas las zonas</option>
                 {locationOptions.map((location) => <option key={location.id} value={location.id}>{location.shortName}</option>)}
               </select>
@@ -552,8 +1207,174 @@ export default function DashboardClient() {
             >
               Alertas <span>{commercialAlerts.length}</span>
             </button>
-            <button type="button" className="manage-data-button" onClick={() => setShowUpload(true)}>Actualizar base</button>
-            <span className="data-pill"><i /> Memoria local · {contextRecordCount} registros</span>
+            <button
+              type="button"
+              className={`boardroom-header-button ${isBoardroomMode ? "active" : ""}`}
+              onClick={toggleBoardroomMode}
+              title={isBoardroomMode ? "Salir de Sala de Juntas (Esc)" : "Activar Modo Sala de Juntas / Pantalla Completa"}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                background: isBoardroomMode ? "#ac182c" : "rgba(255,255,255,0.12)",
+                color: "#ffffff",
+                border: "1px solid rgba(255,255,255,0.25)",
+                padding: "6px 12px",
+                borderRadius: "8px",
+                fontSize: "12px",
+                fontWeight: 700,
+                cursor: "pointer",
+                transition: "all 0.15s ease",
+              }}
+            >
+              📺 Sala de Juntas
+            </button>
+            {(!currentUser || currentUser.canEdit) && (
+              <>
+                <button type="button" className="add-local-header-button" onClick={handleOpenAddLocal} title="Registrar nuevo local comercial">
+                  ➕ Local
+                </button>
+                <button type="button" className="add-contract-header-button" onClick={handleOpenAddContract} title="Registrar nuevo contrato comercial">
+                  📑 Contrato
+                </button>
+              </>
+            )}
+
+            {currentUser && (
+              <div className="user-menu-wrapper" ref={userMenuRef}>
+                <button
+                  type="button"
+                  className={`user-menu-trigger ${isUserMenuOpen ? "active" : ""}`}
+                  onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                  aria-expanded={isUserMenuOpen}
+                  title="Ver cuenta y detalles de sesión"
+                >
+                  <span className="user-menu-icon" aria-hidden="true">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                      <circle cx="12" cy="7" r="4" />
+                    </svg>
+                  </span>
+                  <div className="user-menu-label-col">
+                    <span className="user-menu-name">{currentUser.shortRole}</span>
+                    <span className="user-menu-role">{currentUser.roleLabel}</span>
+                  </div>
+                  <svg
+                    className={`user-menu-arrow ${isUserMenuOpen ? "open" : ""}`}
+                    width="10"
+                    height="10"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </button>
+
+                {/* Botón directo de salida rápida */}
+                <button
+                  type="button"
+                  className="quick-logout-btn"
+                  onClick={handleLogout}
+                  title="Cerrar sesión institucional"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                    <polyline points="16 17 21 12 16 7" />
+                    <line x1="21" y1="12" x2="9" y2="12" />
+                  </svg>
+                  <span>Salir</span>
+                </button>
+
+                {/* Modal Ejecutivo de Cuenta (Posición fija en capa superior, sin cruce con otros módulos) */}
+                {isUserMenuOpen && (
+                  <div
+                    className="user-account-modal-overlay"
+                    onClick={() => setIsUserMenuOpen(false)}
+                    role="dialog"
+                    aria-label="Detalles de la cuenta"
+                  >
+                    <div
+                      className="user-account-modal-card"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="modal-account-header">
+                        <div className="modal-avatar-circle">
+                          <img
+                            src="/brand/aifa-logo-vertical-dark.png"
+                            alt="AIFA"
+                            style={{ maxHeight: "28px", objectFit: "contain" }}
+                          />
+                        </div>
+                        <div className="modal-user-headings">
+                          <span className="modal-institution-tag">AIFA · SERVICIOS COMERCIALES</span>
+                          <strong className="modal-user-fullname">{currentUser.fullName}</strong>
+                          <span className="modal-role-pill">{currentUser.roleLabel}</span>
+                        </div>
+                        <button
+                          type="button"
+                          className="modal-close-btn"
+                          onClick={() => setIsUserMenuOpen(false)}
+                          title="Cerrar ventana"
+                          aria-label="Cerrar"
+                        >
+                          ✕
+                        </button>
+                      </div>
+
+                      <div className="modal-account-divider" />
+
+                      <div className="modal-account-body">
+                        <div className="modal-info-item">
+                          <span className="modal-info-label">Usuario Conectado</span>
+                          <span className="modal-info-val">{currentUser.username}</span>
+                        </div>
+                        <div className="modal-info-item">
+                          <span className="modal-info-label">Nivel de Privilegios</span>
+                          <span className="modal-info-val privilege-highlight">
+                            {currentUser.role === "subdirectora"
+                              ? "Superadministrador (Acceso Total · Edición, Alta y Baja)"
+                              : currentUser.role === "auxiliar"
+                              ? "Operativo (Edición y Alta de Contratos/Locales)"
+                              : "Consulta (Solo Lectura · Sin Modificaciones)"}
+                          </span>
+                        </div>
+                        <div className="modal-info-item">
+                          <span className="modal-info-label">Área de Adscripción</span>
+                          <span className="modal-info-val privilege-highlight">
+                            Subdirección de Servicios Comerciales · AIFA
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="modal-account-divider" />
+
+                      <div className="modal-account-footer">
+                        <button
+                          type="button"
+                          className="modal-logout-action-btn"
+                          onClick={() => {
+                            setIsUserMenuOpen(false);
+                            handleLogout();
+                          }}
+                        >
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                            <polyline points="16 17 21 12 16 7" />
+                            <line x1="21" y1="12" x2="9" y2="12" />
+                          </svg>
+                          Finalizar Sesión Institucional
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -563,33 +1384,36 @@ export default function DashboardClient() {
           </nav>
         </div>
 
-        <div className="hero" id="inicio">
-          <div>
-            <span className="section-kicker">Aeropuerto Internacional Felipe Ángeles</span>
-            <span className="module-context">{activeModule === "home" ? "Inicio" : activeModule === "locals" ? "Gestión de locales" : activeModule === "contracts" ? "Gestión contractual" : activeModule === "finances" ? "Análisis financiero" : activeModule === "intelligence" ? "Análisis rector" : "Salidas administrativas"}</span>
-            <h1>{heroTitle}</h1>
-            {activeModule !== "finances" && <p>{heroDescription}</p>}
+        {activeModule !== "gsc_dashboard" && (
+          <div className="hero" id="inicio">
+            <div>
+              <span className="section-kicker">Aeropuerto Internacional Felipe Ángeles</span>
+              <span className="module-context">{activeModule === "home" ? "Inicio" : activeModule === "locals" ? "Gestión de locales" : activeModule === "advertising" ? "Espacios publicitarios" : activeModule === "contracts" ? "Gestión contractual" : activeModule === "finances" ? "Análisis financiero" : activeModule === "intelligence" ? "Análisis rector" : "Salidas administrativas"}</span>
+              <h1>{heroTitle}</h1>
+              {activeModule !== "finances" && <p>{heroDescription}</p>}
+            </div>
+            <div className="hero-scope-card">
+              <span>Contexto activo</span>
+              <strong>{activeModule === "advertising" ? "Inventario Publicitario (GEP)" : activeModule === "finances" ? financeScopeLabel : activeModule === "contracts" ? contractScopeLabel : isGlobalContext ? "7 zonas comerciales" : currentLocation.name}</strong>
+              <small>{activeModule === "advertising" ? `${numberFormat.format(advertisingSpaces.length)} soportes supervisados` : contextRecordCount ? `${numberFormat.format(contextRecordCount)} locales activos` : "Cargando información comercial..."}</small>
+            </div>
           </div>
-          <div className="hero-scope-card">
-            <span>Contexto activo</span>
-            <strong>{activeModule === "finances" ? financeScopeLabel : isGlobalContext ? "7 zonas comerciales" : currentLocation.name}</strong>
-            <small>{contextRecordCount ? `${numberFormat.format(contextRecordCount)} registros en memoria` : "Carga la base para comenzar"}</small>
-          </div>
-        </div>
+        )}
       </header>
+      )}
 
-      {isModuleMenuFixed && (
+      {!isBoardroomMode && isModuleMenuFixed && (
         <nav className="module-nav-fixed" aria-label="Módulos de SIGCO">
           <div className="module-nav">{renderModuleLinks(true)}</div>
         </nav>
       )}
 
-      <div className="dashboard-shell">
-        {activeModule !== "reports" && (
+      <div className={`dashboard-shell ${isBoardroomMode ? "boardroom-shell-full" : ""} ${activeModule === "gsc_dashboard" ? "gsc-dashboard-shell" : ""}`}>
+        {!isBoardroomMode && activeModule !== "reports" && activeModule !== "gsc_dashboard" && activeModule !== "advertising" && (
           <nav className="context-tabs" aria-label="Vistas del módulo">
             <div>
               <span>{activeModule === "home" ? "Panorama" : activeModule === "locals" ? "Locales" : activeModule === "contracts" ? "Contratos" : activeModule === "finances" ? "Finanzas" : "Análisis"}</span>
-              {activeModule === "home" && <><button className={homeView === "global" ? "active" : ""} type="button" onClick={() => setHomeView("global")}>Resumen global</button><button className={homeView === "zone" ? "active" : ""} type="button" onClick={() => setHomeView("zone")}>Resumen de zona</button></>}
+              {activeModule === "home" && <><button className={homeView === "global" ? "active" : ""} type="button" onClick={() => setHomeView("global")}>Resumen global</button><button className={homeView === "zone" ? "active" : ""} type="button" onClick={() => { if (locationId === "all") changeLocation("etp"); setHomeView("zone"); }}>Resumen de zona</button></>}
               {activeModule === "locals" && (
                 <button className="active" type="button" onClick={() => setLocalView("directory")}>
                   Directorio
@@ -609,21 +1433,41 @@ export default function DashboardClient() {
               {activeModule === "intelligence" && (
                 <>
                   <button className={intelligenceView === "locals_occupancy" ? "active" : ""} type="button" onClick={() => setIntelligenceView("locals_occupancy")}>📍 Análisis de Locales</button>
-                  <button className={intelligenceView === "contracts_validity" ? "active" : ""} type="button" onClick={() => setIntelligenceView("contracts_validity")}>📄 Análisis de Contratos</button>
                   <button className={intelligenceView === "finance_collections" ? "active" : ""} type="button" onClick={() => setIntelligenceView("finance_collections")}>💰 Análisis Financiero</button>
                   <button className={intelligenceView === "matrix" ? "active" : ""} type="button" onClick={() => setIntelligenceView("matrix")}>🏢 Matriz 7 Zonas</button>
                 </>
               )}
             </div>
-            <small>{isGlobalContext ? "Todas las zonas" : currentLocation.shortName}</small>
+            <small>{activeModule === "contracts" ? contractScopeLabel : activeModule === "finances" ? financeScopeLabel : isGlobalContext ? "Todas las zonas" : currentLocation.shortName}</small>
           </nav>
         )}
         {dataWarning && <div className="data-warning" role="status">{dataWarning}</div>}
         {loadingData && <div className="data-loading" role="status"><i /> Actualizando base…</div>}
         <div key={moduleTransitionKey} className="module-content-transition">
-        {activeModule === "home" && homeView === "global" ? (
+        <SafeModuleBoundary moduleName={activeModule} onReset={() => openModule(activeModule)}>
+        {activeModule === "gsc_dashboard" ? (
+          <GscDashboard
+            contracts={allAggregatedContracts}
+            allLocales={Object.values(datasets).flat()}
+            isBoardroomMode={isBoardroomMode}
+            onToggleBoardroomMode={toggleBoardroomMode}
+            onNavigateToModule={(mod) => openModule(mod)}
+            onSelectContract={(num) => {
+              openModule("contracts");
+              updateSearch(num);
+            }}
+            onSelectLocal={(nom, locId) => {
+              if (locId && datasets[locId]) changeLocation(locId);
+              openModule("locals");
+              setLocalView("directory");
+              updateSearch(nom);
+            }}
+          />
+        ) : activeModule === "home" && homeView === "global" ? (
           <GlobalSummary
             datasets={datasets}
+            contractRecords={allContractRecords}
+            financeRecords={Object.values(datasets).flat()}
             onSelectLocation={(selectedLocationId) => {
               changeLocation(selectedLocationId);
               setActiveModule("locals");
@@ -632,8 +1476,9 @@ export default function DashboardClient() {
           />
         ) : activeModule === "intelligence" ? (
           <IntelligenceCenter
-            key={`${analysisTarget}-${intelligenceView}`}
+            key={`${analysisTarget}-${intelligenceView}-${locationId}`}
             datasets={datasets}
+            contractRecords={allContractRecords}
             view={intelligenceView}
             sourceFile={sourceFile}
             sourceUpdatedAt={sourceUpdatedAt}
@@ -644,29 +1489,51 @@ export default function DashboardClient() {
             onUpload={() => setShowUpload(true)}
             onChangeView={setIntelligenceView}
             onSelectLocation={(selectedLocId) => changeLocation(selectedLocId)}
-            onOpenLocal={(nomenclature, sourceLocationId) => {
-              if (sourceLocationId && datasets[sourceLocationId]) changeLocation(sourceLocationId);
-              updateSearch(nomenclature);
-              setActiveModule("locals");
-              setLocalView("directory");
-            }}
+            onOpenLocal={handleOpenLocalFromAnywhere}
           />
         ) : activeModule === "finances" ? (
-          <FinanceCenter
-            records={financeRecords}
-            scopeLabel={financeScopeLabel}
-            subTab={financeSubTab}
-            onChangeSubTab={setFinanceSubTab}
-            onUpload={() => setShowUpload(true)}
-          />
+          <FinanceCenter records={financeRecords} scopeLabel={financeScopeLabel} onUpload={() => setShowUpload(true)} />
         ) : activeModule === "reports" ? (
           <ReportsCenter
             datasets={datasets}
             contractRecords={allContractRecords}
             onUpload={() => setShowUpload(true)}
           />
+
+
+        ) : activeModule === "advertising" ? (
+          <AdvertisingCenter
+            advertisingSpaces={advertisingSpaces}
+            contractRecords={allContractRecords}
+            initialSearch={advertisingSearch}
+            initialUnitCode={advertisingSelectedUnitCode}
+            onClearInitialUnit={() => setAdvertisingSelectedUnitCode(null)}
+            onSelectContract={(contractNumber) => {
+              setContractLocationId("all");
+              setContractSearchQuery(contractNumber);
+              setContractGerenciaFilter("gep");
+              setContractView("summary");
+              setActiveModule("contracts");
+            }}
+          />
         ) : activeModule === "contracts" ? (
-          allContractRecords.length ? <ContractCenter records={allContractRecords} locationName="Todas las zonas comerciales" mode={contractView} onOpenLocal={(nomenclature, sourceLocationId) => { if (sourceLocationId && datasets[sourceLocationId]) changeLocation(sourceLocationId); updateSearch(nomenclature); setActiveModule("locals"); setLocalView("directory"); }} /> : <EmptyLocationState onUpload={() => setShowUpload(true)} />
+          allContractRecords.length ? (
+            <ContractCenter
+              records={contractRecords}
+              locationName={contractScopeLabel}
+              selectedLocationId={contractLocationId}
+              onSelectLocationId={setContractLocationId}
+              mode={contractView}
+              initialSearch={contractSearchQuery}
+              initialGerencia={contractGerenciaFilter}
+              onOpenLocal={handleOpenLocalFromAnywhere}
+              onAddContract={!currentUser || currentUser.canEdit ? handleOpenAddContract : undefined}
+              onEditContract={!currentUser || currentUser.canEdit ? handleOpenEditContract : undefined}
+              onDeleteContract={!currentUser || currentUser.canDelete ? handleDeleteContract : undefined}
+            />
+          ) : (
+            <EmptyLocationState onUpload={() => setShowUpload(true)} />
+          )
         ) : activeModule === "home" ? (
           records.length ? (
             <SummaryDashboard
@@ -678,6 +1545,7 @@ export default function DashboardClient() {
               onOpenDirectory={() => { setActiveModule("locals"); setLocalView("directory"); }}
               onOpenBrand={(brand) => { clearFilters(); updateSearch(brand); setActiveModule("locals"); setLocalView("directory"); }}
               onOpenAnalysis={(indicator) => { setAnalysisTarget(indicator); setIntelligenceView("locals_occupancy"); setActiveModule("intelligence"); }}
+              onOpenCapacityUpdate={() => setShowCapacityModal(true)}
             />
           ) : (
             <EmptyLocationState onUpload={() => setShowUpload(true)} />
@@ -822,10 +1690,13 @@ export default function DashboardClient() {
                       </p>
                     </div>
                     <div className="directory-actions">
+                      <button type="button" onClick={handleOpenAddLocal} className="primary-button add-local-action-btn">
+                        ➕ Agregar Local
+                      </button>
                       <button type="button" onClick={() => window.print()} className="secondary-button">
                         Imprimir
                       </button>
-                      <button type="button" onClick={exportCsv} className="primary-button">
+                      <button type="button" onClick={exportCsv} className="secondary-button">
                         Exportar CSV
                       </button>
                     </div>
@@ -897,6 +1768,8 @@ export default function DashboardClient() {
                             expanded={expandedId === record.id}
                             onToggle={() => setExpandedId(expandedId === record.id ? null : record.id)}
                             onOpenContract={() => { setActiveModule("contracts"); setContractView("summary"); }}
+                            onEdit={() => handleOpenEditLocal(record)}
+                            onDelete={() => handleDeleteLocal(record)}
                           />
                         ))}
                       </tbody>
@@ -927,19 +1800,22 @@ export default function DashboardClient() {
         </section>
           </>
         )}
+        </SafeModuleBoundary>
         </div>
       </div>
 
-      <footer>
-        <span className="footer-brand">
-          <img src="/brand/aifa-logo-horizontal-dark.png" alt="Aeropuerto Internacional Felipe Ángeles" />
-          <span>SIGCO - Sistema Integral de Gestión Comercial y Operativa</span>
-        </span>
-        <span>
-          Fuente: {sourceFile} · {records.length} locales
-          {sourceUpdatedAt ? ` · actualizada ${new Date(sourceUpdatedAt).toLocaleDateString("es-MX")}` : ""}
-        </span>
-      </footer>
+      {!isBoardroomMode && (
+        <footer>
+          <span className="footer-brand">
+            <img src="/brand/aifa-logo-horizontal-dark.png" alt="Aeropuerto Internacional Felipe Ángeles" />
+            <span>SIGCO - Sistema Integral de Gestión Comercial y Operativa</span>
+          </span>
+          <span>
+            Fuente: {sourceFile} · {records.length} locales
+            {sourceUpdatedAt ? ` · actualizada ${new Date(sourceUpdatedAt).toLocaleDateString("es-MX")}` : ""}
+          </span>
+        </footer>
+      )}
 
       {showUpload && (
         <DataUploadModal
@@ -953,7 +1829,6 @@ export default function DashboardClient() {
             setStandaloneContractRecords(result.contractRecords);
             setLocationId(nextLocationId);
             setFinanceLocationId(nextLocationId);
-            setRecords(result.datasets[nextLocationId] ?? []);
             setEtpCommercialCapacity(result.etpCommercialCapacity);
             setPassengerTraffic(result.passengerTraffic);
             setSourceFile(result.filename);
@@ -965,6 +1840,7 @@ export default function DashboardClient() {
             setMinArea("");
             setMaxArea("");
             setExpandedId(null);
+            
             setPage(1);
             setActiveModule("home");
             setHomeView("zone");
@@ -979,6 +1855,31 @@ export default function DashboardClient() {
         onClose={() => setShowCommercialAlerts(false)}
       />
       <InstitutionalCenter open={showInstitutional} onClose={() => setShowInstitutional(false)} />
+      <LocalFormModal
+        isOpen={isLocalModalOpen}
+        onClose={() => setIsLocalModalOpen(false)}
+        onSave={handleSaveLocal}
+        initialRecord={editingLocalRecord}
+        defaultLocationId={locationId}
+      />
+      <ContractFormModal
+        isOpen={isContractModalOpen}
+        onClose={() => setIsContractModalOpen(false)}
+        onSave={handleSaveContract}
+        initialRecord={editingContractRecord}
+        defaultLocationId={contractLocationId === "all" ? locationId : contractLocationId}
+        availableLocals={availableLocalsList}
+      />
+      {showCapacityModal && (
+        <CommercialCapacityModal
+          isOpen={showCapacityModal}
+          onClose={() => setShowCapacityModal(false)}
+          currentCapacity={etpCommercialCapacity}
+          passengerTraffic={passengerTraffic}
+          onCapacityUpdated={(newCap) => setEtpCommercialCapacity(newCap)}
+          onTrafficUpdated={(newTraffic) => setPassengerTraffic(newTraffic)}
+        />
+      )}
     </main>
   );
 }
@@ -988,11 +1889,15 @@ function RecordRows({
   expanded,
   onToggle,
   onOpenContract,
+  onEdit,
+  onDelete,
 }: {
   record: LocalRecord;
   expanded: boolean;
   onToggle: () => void;
   onOpenContract: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
 }) {
   return (
     <>
@@ -1021,15 +1926,39 @@ function RecordRows({
           </span>
         </td>
         <td>
-          <button
-            type="button"
-            className="detail-button"
-            onClick={onToggle}
-            aria-expanded={expanded}
-            aria-label={`${expanded ? "Ocultar" : "Mostrar"} detalle de ${record.nomenclatura}`}
-          >
-            {expanded ? "−" : "+"}
-          </button>
+          <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+            <button
+              type="button"
+              className="table-action-btn edit-local-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit();
+              }}
+              title="Editar datos del local"
+            >
+              ✏️ Editar
+            </button>
+            <button
+              type="button"
+              className="delete-local-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
+              title="Eliminar local"
+            >
+              🗑️
+            </button>
+            <button
+              type="button"
+              className="detail-button"
+              onClick={onToggle}
+              aria-expanded={expanded}
+              aria-label={`${expanded ? "Ocultar" : "Mostrar"} detalle de ${record.nomenclatura}`}
+            >
+              {expanded ? "−" : "+"}
+            </button>
+          </div>
         </td>
       </tr>
       {expanded && (

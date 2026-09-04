@@ -13885,3 +13885,44 @@ reports-center-simple {
     grid-template-columns: 1fr;
   }
 }
+
+/* ==========================================================================
+   AJUSTES DEL TABLERO GSC (ESPACIADO Y ALINEACIÓN DE MENÚS)
+   ========================================================================== */
+
+.gsc-dashboard-tab-btn {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 16px !important;
+  margin: 7px 8px 7px 0;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #09212e 0%, #8b1d3f 100%) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  font-weight: 700 !important;
+  box-shadow: 0 2px 8px rgba(9, 33, 46, 0.35);
+  letter-spacing: 0.3px;
+  transition: all 0.2s ease;
+}
+
+.gsc-dashboard-tab-btn.active {
+  background: linear-gradient(135deg, #8b1d3f 0%, #ac182c 100%) !important;
+  box-shadow: 0 4px 14px rgba(172, 24, 44, 0.4) !important;
+  border-color: rgba(255, 255, 255, 0.5) !important;
+}
+
+/* Encabezado y contenedor superior para el Tablero GSC sin tapar menús */
+.top-shell.top-shell-gsc {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 4px 14px rgba(9, 33, 46, 0.16);
+}
+
+.dashboard-shell.gsc-dashboard-shell {
+  margin-top: 24px !important;
+}
+
+.commercial-capacity-evidence {
+  display: block;
+}
+
