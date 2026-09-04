@@ -205,14 +205,9 @@ export default function GscDashboard({
     });
   }, [scoredContracts, selectedZone, selectedStatus, selectedTier]);
 
-  // 4. Locales Físicos Comerciales (excluye GEP / Publicitarios)
+  // 4. Locales Físicos Comerciales (todas las zonas comerciales del aeropuerto)
   const commercialLocales = useMemo(() => {
-    return allLocales.filter((l) => {
-      const g = (l.gerencia || "").toUpperCase();
-      const n = (l.nomenclatura || "").toUpperCase();
-      if (g.includes("GEP") || g.includes("PUBLICIT") || n.startsWith("EP-")) return false;
-      return true;
-    });
+    return allLocales;
   }, [allLocales]);
 
   // Locales dinámicos según la zona comercial elegida en los slicers
