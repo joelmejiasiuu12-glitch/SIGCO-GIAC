@@ -540,210 +540,237 @@ export default function GscDashboard({
 
   return (
     <div className={`gsc-dashboard-root ${isBoardroom ? "boardroom-fullscreen" : ""}`}>
-      {/* 1. BARRA SUPERIOR DE CONTROL Y TÍTULO INSTITUCIONAL */}
-      <header className="gsc-dash-header" aria-label="Cabecera del Tablero GSC">
-        <div className="gsc-dash-title-group">
-          <span className="gsc-dash-badge">
-            <span className="badge-dot" /> DIRECCIÓN COMERCIAL Y DE SERVICIOS · AIFA
-          </span>
-          <h1>Tablero Directivo de Servicios Comerciales (GSC)</h1>
-          <p>
-            Monitoreo en tiempo real de ocupación de locales en las 7 zonas comerciales, cartera contractual de 246 marcas, salud documental y facturación.
-          </p>
+      {/* 1. CABECERA EJECUTIVA INTEGRADA CON SELECTOR DE VISTAS */}
+      <header className="gsc-dash-header-card" aria-label="Cabecera del Tablero GSC">
+        <div className="gsc-dash-header-top">
+          <div className="gsc-dash-brand-block">
+            <span className="gsc-dash-kicker">
+              <span className="badge-dot" /> AIFA · SUBDIRECCIÓN DE GESTIÓN COMERCIAL
+            </span>
+            <h1 className="gsc-dash-main-title">Tablero Directivo de Servicios Comerciales (GSC)</h1>
+            <p className="gsc-dash-subtitle">
+              Inteligencia operativa en tiempo real: monitoreo de ocupación en las 7 zonas comerciales, control de 246 marcas, salud documental y facturación consolidada.
+            </p>
+          </div>
+
+          <div className="gsc-header-stats-badge">
+            <div className="stat-pill-item">
+              <span className="stat-pill-label">Ocupación Global</span>
+              <strong className="stat-pill-val">{Math.round(occupancyRate)}%</strong>
+            </div>
+            <div className="stat-pill-divider" />
+            <div className="stat-pill-item">
+              <span className="stat-pill-label">Cartera Activa</span>
+              <strong className="stat-pill-val">{gscContracts.length} contratos</strong>
+            </div>
+          </div>
         </div>
 
+        {/* SELECTOR DE VISTAS / PESTAÑAS ESTILO CONTEXT-TABS */}
+        <nav className="gsc-nav-tabs" aria-label="Vistas del Tablero">
+          <button
+            type="button"
+            className={`gsc-nav-tab-btn ${dashboardTab === "summary" ? "active" : ""}`}
+            onClick={() => setDashboardTab("summary")}
+          >
+            <span className="tab-icon">📊</span>
+            <span className="tab-text">Resumen Ejecutivo</span>
+          </button>
+          <button
+            type="button"
+            className={`gsc-nav-tab-btn ${dashboardTab === "locals" ? "active" : ""}`}
+            onClick={() => setDashboardTab("locals")}
+          >
+            <span className="tab-icon">🏢</span>
+            <span className="tab-text">Directorio de Locales</span>
+            <span className="tab-badge">{zoneLocales.length}</span>
+          </button>
+          <button
+            type="button"
+            className={`gsc-nav-tab-btn ${dashboardTab === "contracts" ? "active" : ""}`}
+            onClick={() => setDashboardTab("contracts")}
+          >
+            <span className="tab-icon">📑</span>
+            <span className="tab-text">Padrón Contractual GSC</span>
+            <span className="tab-badge">{gscContracts.length}</span>
+          </button>
+          <button
+            type="button"
+            className={`gsc-nav-tab-btn ${dashboardTab === "scoring" ? "active" : ""}`}
+            onClick={() => setDashboardTab("scoring")}
+          >
+            <span className="tab-icon">⭐</span>
+            <span className="tab-text">Scoring & Cumplimiento</span>
+            <span className="tab-badge">{gscContracts.length}</span>
+          </button>
+        </nav>
       </header>
 
-      {/* 2. PESTAÑAS PRINCIPALES DEL TABLERO */}
-      <nav className="gsc-tabs-selector" aria-label="Vistas del Tablero">
-        <button
-          type="button"
-          className={`gsc-tab-btn ${dashboardTab === "summary" ? "active" : ""}`}
-          onClick={() => setDashboardTab("summary")}
-        >
-          📊 Resumen Ejecutivo
-        </button>
-        <button
-          type="button"
-          className={`gsc-tab-btn ${dashboardTab === "locals" ? "active" : ""}`}
-          onClick={() => setDashboardTab("locals")}
-        >
-          🏢 Locales Físicos ({zoneLocales.length})
-        </button>
-        <button
-          type="button"
-          className={`gsc-tab-btn ${dashboardTab === "contracts" ? "active" : ""}`}
-          onClick={() => setDashboardTab("contracts")}
-        >
-          📑 Cartera Contractual GSC ({gscContracts.length})
-        </button>
-        <button
-          type="button"
-          className={`gsc-tab-btn ${dashboardTab === "scoring" ? "active" : ""}`}
-          onClick={() => setDashboardTab("scoring")}
-        >
-          ⭐ Scoring y Cumplimiento de Marcas ({gscContracts.length})
-        </button>
-      </nav>
-
-      {/* 3. SLICERS / SEGMENTADORES RÁPIDOS DE FILTRO (TODAS LAS 7 ZONAS Y 4 ESTATUS) */}
-      <nav className="gsc-slicers-bar" aria-label="Filtros del Tablero">
-        {/* SLICER 1: ZONAS COMERCIALES (LAS 7 OFICIALES + TODAS) */}
-        <div className="slicer-group">
-          <span className="slicer-label">Zona Comercial:</span>
-          <div className="slicer-pills">
-            <button
-              type="button"
-              className={selectedZone === "all" ? "active" : ""}
-              onClick={() => { setSelectedZone("all"); setLocalPage(1); }}
-            >
-              Todas ({gscContracts.length} contratos)
-            </button>
-            {locationOptions.map((zone) => {
-              const count = gscContracts.filter((c) => {
-                const zMatch = (c.locationId || "").toLowerCase() === zone.id.toLowerCase();
-                const locMatch = c.locals.some((loc) => recordMatchesZone(loc, zone.id));
-                return zMatch || locMatch;
-              }).length;
-              return (
-                <button
-                  key={zone.id}
-                  type="button"
-                  className={selectedZone === zone.id ? "active" : ""}
-                  onClick={() => { setSelectedZone(zone.id); setLocalPage(1); }}
-                >
-                  {zone.shortName} ({count})
-                </button>
-              );
-            })}
+      {/* 2. BARRA DE FILTROS Y SEGMENTACIÓN EJECUTIVA */}
+      <section className="gsc-filter-cockpit" aria-label="Filtros del Tablero">
+        <div className="gsc-filter-row">
+          {/* FILTRO 1: ZONAS COMERCIALES (7 OFICIALES + CONSOLIDADO) */}
+          <div className="filter-cluster">
+            <span className="filter-cluster-label">Zona Comercial:</span>
+            <div className="filter-chips-wrap">
+              <button
+                type="button"
+                className={`filter-chip ${selectedZone === "all" ? "active" : ""}`}
+                onClick={() => { setSelectedZone("all"); setLocalPage(1); }}
+              >
+                Todas ({gscContracts.length})
+              </button>
+              {locationOptions.map((zone) => {
+                const count = gscContracts.filter((c) => {
+                  const zMatch = (c.locationId || "").toLowerCase() === zone.id.toLowerCase();
+                  const locMatch = c.locals.some((loc) => recordMatchesZone(loc, zone.id));
+                  return zMatch || locMatch;
+                }).length;
+                return (
+                  <button
+                    key={zone.id}
+                    type="button"
+                    className={`filter-chip ${selectedZone === zone.id ? "active" : ""}`}
+                    onClick={() => { setSelectedZone(zone.id); setLocalPage(1); }}
+                  >
+                    {zone.shortName} <span className="chip-counter">{count}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 
-        {/* SLICER 2: LOS 4 ESTATUS OFICIALES */}
-        <div className="slicer-group">
-          <span className="slicer-label">Estatus de Locales:</span>
-          <div className="slicer-pills">
-            <button
-              type="button"
-              className={selectedStatus === "all" ? "active" : ""}
-              onClick={() => setSelectedStatus("all")}
-            >
-              Todos ({zoneLocales.length})
-            </button>
-            <button
-              type="button"
-              className={selectedStatus === "operando" ? "active" : ""}
-              onClick={() => setSelectedStatus("operando")}
-            >
-              <i className="status-dot" style={{ background: statusColors["EN FUNCIONAMIENTO"] }} /> En Funcionamiento ({operatingLocalsCount})
-            </button>
-            <button
-              type="button"
-              className={selectedStatus === "obra" ? "active" : ""}
-              onClick={() => setSelectedStatus("obra")}
-            >
-              <i className="status-dot" style={{ background: statusColors["EN ADAPTACION"] }} /> En Adaptación ({obraLocalsList.length})
-            </button>
-            <button
-              type="button"
-              className={selectedStatus === "formalizacion" ? "active" : ""}
-              onClick={() => setSelectedStatus("formalizacion")}
-            >
-              <i className="status-dot" style={{ background: statusColors["EN PROCESO DE ASIGNACION"] }} /> En Formalización ({formalizacionLocalsList.length})
-            </button>
-            <button
-              type="button"
-              className={selectedStatus === "disponible" ? "active" : ""}
-              onClick={() => setSelectedStatus("disponible")}
-            >
-              <i className="status-dot" style={{ background: statusColors.DISPONIBLE }} /> Disponibles ({availableLocalsCount})
-            </button>
+        <div className="gsc-filter-row secondary-filters-row">
+          {/* FILTRO 2: LOS 4 ESTATUS OFICIALES */}
+          <div className="filter-cluster">
+            <span className="filter-cluster-label">Estatus Local:</span>
+            <div className="filter-chips-wrap">
+              <button
+                type="button"
+                className={`filter-chip ${selectedStatus === "all" ? "active" : ""}`}
+                onClick={() => setSelectedStatus("all")}
+              >
+                Todos ({zoneLocales.length})
+              </button>
+              <button
+                type="button"
+                className={`filter-chip status-chip-op ${selectedStatus === "operando" ? "active" : ""}`}
+                onClick={() => setSelectedStatus("operando")}
+              >
+                <i className="status-dot" style={{ background: statusColors["EN FUNCIONAMIENTO"] }} /> En Funcionamiento ({operatingLocalsCount})
+              </button>
+              <button
+                type="button"
+                className={`filter-chip status-chip-obra ${selectedStatus === "obra" ? "active" : ""}`}
+                onClick={() => setSelectedStatus("obra")}
+              >
+                <i className="status-dot" style={{ background: statusColors["EN ADAPTACION"] }} /> En Adaptación ({obraLocalsList.length})
+              </button>
+              <button
+                type="button"
+                className={`filter-chip status-chip-form ${selectedStatus === "formalizacion" ? "active" : ""}`}
+                onClick={() => setSelectedStatus("formalizacion")}
+              >
+                <i className="status-dot" style={{ background: statusColors["EN PROCESO DE ASIGNACION"] }} /> En Formalización ({formalizacionLocalsList.length})
+              </button>
+              <button
+                type="button"
+                className={`filter-chip status-chip-disp ${selectedStatus === "disponible" ? "active" : ""}`}
+                onClick={() => setSelectedStatus("disponible")}
+              >
+                <i className="status-dot" style={{ background: statusColors.DISPONIBLE }} /> Disponibles ({availableLocalsCount})
+              </button>
+            </div>
+          </div>
+
+          {/* FILTRO 3: CALIFICACIÓN / SCORE DE MARCAS */}
+          <div className="filter-cluster">
+            <span className="filter-cluster-label">Scoring Marcas:</span>
+            <div className="filter-chips-wrap tier-chips">
+              <button
+                type="button"
+                className={`filter-chip ${selectedTier === "all" ? "active" : ""}`}
+                onClick={() => setSelectedTier("all")}
+              >
+                Todos ({filteredContracts.length})
+              </button>
+              <button
+                type="button"
+                className={`filter-chip tier-chip-a-plus ${selectedTier === "A+" ? "active" : ""}`}
+                onClick={() => setSelectedTier("A+")}
+              >
+                A+ ({tierCounts["A+"]})
+              </button>
+              <button
+                type="button"
+                className={`filter-chip tier-chip-a ${selectedTier === "A" ? "active" : ""}`}
+                onClick={() => setSelectedTier("A")}
+              >
+                A ({tierCounts.A})
+              </button>
+              <button
+                type="button"
+                className={`filter-chip tier-chip-b ${selectedTier === "B" ? "active" : ""}`}
+                onClick={() => setSelectedTier("B")}
+              >
+                B ({tierCounts.B})
+              </button>
+              <button
+                type="button"
+                className={`filter-chip tier-chip-c ${selectedTier === "C" ? "active" : ""}`}
+                onClick={() => setSelectedTier("C")}
+              >
+                C ({tierCounts.C})
+              </button>
+            </div>
           </div>
         </div>
+      </section>
 
-        {/* SLICER 3: CALIFICACIÓN / SCORE */}
-        <div className="slicer-group">
-          <span className="slicer-label">Calificación de Marcas:</span>
-          <div className="slicer-pills tier-pills">
-            <button
-              type="button"
-              className={selectedTier === "all" ? "active" : ""}
-              onClick={() => setSelectedTier("all")}
-            >
-              Todos ({filteredContracts.length})
-            </button>
-            <button
-              type="button"
-              className={`tier-pill-a-plus ${selectedTier === "A+" ? "active" : ""}`}
-              onClick={() => setSelectedTier("A+")}
-            >
-              A+ ({tierCounts["A+"]})
-            </button>
-            <button
-              type="button"
-              className={`tier-pill-a ${selectedTier === "A" ? "active" : ""}`}
-              onClick={() => setSelectedTier("A")}
-            >
-              A ({tierCounts.A})
-            </button>
-            <button
-              type="button"
-              className={`tier-pill-b ${selectedTier === "B" ? "active" : ""}`}
-              onClick={() => setSelectedTier("B")}
-            >
-              B ({tierCounts.B})
-            </button>
-            <button
-              type="button"
-              className={`tier-pill-c ${selectedTier === "C" ? "active" : ""}`}
-              onClick={() => setSelectedTier("C")}
-            >
-              C ({tierCounts.C})
-            </button>
-          </div>
-        </div>
-      </nav>
-
-      {/* 4. ENCABEZADO DE TARJETAS KPI CON MICRO-ANILLOS CIRCULARES INSTITUCIONALES */}
+      {/* 3. TARJETAS KPI DE IMPACTO DIRECTIVO */}
       <section className="gsc-kpi-grid" aria-label="Indicadores Macro">
         {/* KPI 1: Contratos Comerciales GSC */}
-        <article className="gsc-kpi-card hero-kpi" onClick={() => setDashboardTab("contracts")} style={{ cursor: "pointer" }} title="Ver cartera de contratos">
+        <article className="gsc-kpi-card hero-kpi" onClick={() => setDashboardTab("contracts")} role="button" tabIndex={0} title="Ver cartera de contratos">
           <div className="kpi-content">
-            <span className="kpi-tag">Portafolio GSC</span>
+            <div className="kpi-head-row">
+              <span className="kpi-tag">Portafolio GSC</span>
+              <span className="kpi-mini-tag">{selectedZone === "all" ? "Consolidado" : (locationOptions.find(z => z.id === selectedZone)?.shortName || "Zona")}</span>
+            </div>
             <strong className="kpi-main-number">{numberFormat.format(totalContracts)}</strong>
-            <span className="kpi-subtext">Contratos Comerciales en {selectedZone === "all" ? "Consolidado" : (locationOptions.find(z => z.id === selectedZone)?.shortName || "Zona")}</span>
+            <span className="kpi-subtext">Contratos comerciales administrados</span>
           </div>
           <div className="kpi-icon-bubble" aria-hidden="true">
             📂
           </div>
         </article>
 
-        {/* KPI 2: Locales Comerciales Arrendados vs Inventario (Dinámico según la Zona elegida) */}
-        <article className="gsc-kpi-card" onClick={() => setDashboardTab("locals")} style={{ cursor: "pointer" }} title="Ver directorio de locales comerciales">
+        {/* KPI 2: Locales Comerciales Arrendados vs Inventario */}
+        <article className="gsc-kpi-card" onClick={() => setDashboardTab("locals")} role="button" tabIndex={0} title="Ver directorio de locales comerciales">
           <div className="kpi-gauge-wrap">
-            <CircularGauge percentage={occupancyRate} color={statusColors["EN FUNCIONAMIENTO"]} trackColor="#e6f4f1" size={74} />
+            <CircularGauge percentage={occupancyRate} color={statusColors["EN FUNCIONAMIENTO"]} trackColor="#e2e8f0" size={76} strokeWidth={8} />
           </div>
           <div className="kpi-content">
             <span className="kpi-tag">Locales Arrendados {selectedZone !== "all" ? `· ${locationOptions.find(z => z.id === selectedZone)?.shortName || ""}` : ""}</span>
             <strong className="kpi-main-number">
-              {numberFormat.format(rentedLocalesCount)} <small className="kpi-denom">/ {zoneLocales.length} espacios</small>
+              {numberFormat.format(rentedLocalesCount)} <small className="kpi-denom">/ {zoneLocales.length}</small>
             </strong>
             <span className="kpi-subtext">
-              {operatingLocalsCount} en operación · {obraLocalsList.length} en obra · {availableLocalsCount} disponibles
+              {operatingLocalsCount} en operación · {obraLocalsList.length} obra · {availableLocalsCount} disponibles
             </span>
           </div>
         </article>
 
         {/* KPI 3: Calificación Promedio de Marcas */}
-        <article className="gsc-kpi-card" onClick={() => setDashboardTab("scoring")} style={{ cursor: "pointer" }} title="Ver Dashboard de Scoring de Marcas">
+        <article className="gsc-kpi-card" onClick={() => setDashboardTab("scoring")} role="button" tabIndex={0} title="Ver Dashboard de Scoring de Marcas">
           <div className="kpi-gauge-wrap">
-            <CircularGauge percentage={averageScore} color="#ac182c" trackColor="#fdf2f4" size={74} />
+            <CircularGauge percentage={averageScore} color="#ac182c" trackColor="#fee2e2" size={76} strokeWidth={8} />
           </div>
           <div className="kpi-content">
             <span className="kpi-tag">Calificación Promedio</span>
-            <strong className="kpi-main-number">{averageScore} / 100</strong>
+            <strong className="kpi-main-number">{averageScore} <small className="kpi-denom">/ 100 pts</small></strong>
             <span className="kpi-subtext">
-              Tier {averageScore >= 85 ? "A+ (Excelente)" : averageScore >= 70 ? "A (Bueno)" : "B (Alerta)"} · Ver Scoring →
+              Tier {averageScore >= 85 ? "A+ (Excelente)" : averageScore >= 70 ? "A (Bueno)" : "B (Alerta)"} · Ver detalle →
             </span>
           </div>
         </article>
@@ -751,7 +778,10 @@ export default function GscDashboard({
         {/* KPI 4: Facturación Mensual Consolidada */}
         <article className="gsc-kpi-card highlight-revenue">
           <div className="kpi-content">
-            <span className="kpi-tag">Facturación Mensual</span>
+            <div className="kpi-head-row">
+              <span className="kpi-tag">Facturación Mensual</span>
+              <span className="kpi-mini-badge-teal">Estimada</span>
+            </div>
             <strong className="kpi-main-number">{currencyFormat.format(totalMonthlyRevenue)}</strong>
             <span className="kpi-subtext">
               Contraprestación fija contratada + variable

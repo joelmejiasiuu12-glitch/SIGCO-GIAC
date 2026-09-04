@@ -1,9 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { locationOptions, type LocalRecord } from "@/app/types";
+import { getGiroCategory, getSpaceType, locationOptions, type LocalRecord } from "@/app/types";
+import { recordMatchesZone, buildContracts } from "./ContractCenter";
 
 const numberFormat = new Intl.NumberFormat("es-MX", { maximumFractionDigits: 1 });
+const currencyFormat = new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 });
 const colors = ["#ac182c", "#00886f", "#405364", "#b56d16", "#8a633f", "#0b957e", "#87929c"];
 const leasedStatuses = ["EN FUNCIONAMIENTO", "EN ADAPTACION", "FORMALIZADO"];
 const statusColors: Record<string, string> = {
@@ -193,8 +195,7 @@ function GlobalStatusDonuts({ records }: { records: LocatedRecord[] }) {
   );
 }
 
-export default function GlobalSummary({ datasets, onSelectLocation }: { datasets: Dataset; onSelectLocation: (locationId: string) => void }) {
-  const [selectedLocationId, setSelectedLocationId] = useState("all");
+export default function GlobalSummary({ datasets, contractRecords = [], financeRecords = [], onSelectLocation }: { datasets: Dataset; contractRecords?: LocalRecord[]; financeRecords?: LocalRecord[]; onSelectLocation: (locationId: string) => void }) {
   const rows = useMemo(() => locationOptions.map((location) => {
     const records = datasets[location.id] ?? [];
     const operating = records.filter((record) => record.estatus === "EN FUNCIONAMIENTO").length;
@@ -204,7 +205,7 @@ export default function GlobalSummary({ datasets, onSelectLocation }: { datasets
     const area = records.reduce((sum, record) => sum + (record.metraje ?? 0), 0);
     return { id: location.id, name: matrixNames[location.id] ?? location.name, records, operating, available, leased, formalization, area };
   }), [datasets]);
-  const visibleRows = selectedLocationId === "all" ? rows : rows.filter((row) => row.id === selectedLocationId);
+  const visibleRows = rows;
   const locatedRecords = useMemo(() => visibleRows.flatMap((row) => row.records.map((record) => ({ locationId: row.id, locationName: row.name, record }))), [visibleRows]);
   const allRecords = locatedRecords.map(({ record }) => record);
   const operating = visibleRows.reduce((sum, row) => sum + row.operating, 0);
@@ -212,18 +213,46 @@ export default function GlobalSummary({ datasets, onSelectLocation }: { datasets
   const totalArea = visibleRows.reduce((sum, row) => sum + row.area, 0);
   const inventory = visibleRows.map((row) => [row.name, row.records.length] as Datum);
   const surface = visibleRows.map((row) => [row.name, row.area] as Datum).sort((a, b) => b[1] - a[1]);
+  const spaceTypes = useMemo(() => {
+    const counts = new Map<string, number>();
+    allRecords.forEach((record) => {
+      const type = getSpaceType(record);
+      counts.set(type, (counts.get(type) ?? 0) + 1);
+    });
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]) as Datum[];
+  }, [allRecords]);
+  const giroOfferMix = useMemo(() => {
+    const counts = new Map<string, number>();
+    allRecords.forEach((record) => {
+      const giro = getGiroCategory(record);
+      counts.set(giro, (counts.get(giro) ?? 0) + 1);
+    });
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]) as Datum[];
+  }, [allRecords]);
+
+  // Financial metrics
+  const financeFiltered = financeRecords;
+  const activeFinances = financeFiltered.filter((r) => r.estatus === "EN FUNCIONAMIENTO" && (r.monthlyRent ?? r.monthlyRentVigente ?? 0) > 0);
+  const totalMonthlyRent = activeFinances.reduce((sum, r) => sum + (r.monthlyRent ?? r.monthlyRentVigente ?? 0), 0);
+  const avgRentPerM2 = activeFinances.length ? activeFinances.reduce((sum, r) => sum + (r.costPerM2 ?? r.costPerM2Vigente ?? 0), 0) / activeFinances.length : 0;
+  
+  // Contractual metrics — use buildContracts to mirror ContractCenter's counting logic
+  const allContracts = useMemo(() => buildContracts(contractRecords), [contractRecords]);
+  const activeContracts = allContracts.filter((c) => c.stage === "formalized" || c.stage === "preformalization" || c.stage === "formalization" || c.stage === "agreements");
+  const contractFormalized = activeContracts.filter((c) => c.stage === "formalized").length;
+  const contractGSC = activeContracts.filter((c) => {
+    const ger = String(c.gerencia ?? "").toUpperCase();
+    return !ger.includes("PUBLICITARIO");
+  }).length;
+  const contractGEP = activeContracts.filter((c) => {
+    const ger = String(c.gerencia ?? "").toUpperCase();
+    return ger.includes("PUBLICITARIO");
+  }).length;
 
   return (
     <section className="executive-summary global-summary" id="resumen-global" aria-label="Resumen global">
       <div className="summary-title-row global-summary-title">
-        <div><span className="section-kicker">Resumen global</span><h2>Panorama de las 7 zonas comerciales en SSC</h2><p>Indicadores consolidados de todo el polígono comercial del aeropuerto.</p></div>
-        <label className="global-location-filter">
-          <span>Zona comercial</span>
-          <select value={selectedLocationId} onChange={(event) => setSelectedLocationId(event.target.value)} aria-label="Filtrar Resumen Global por zona comercial">
-            <option value="all">Todas las ubicaciones</option>
-            {locationOptions.map((location) => <option key={location.id} value={location.id}>{matrixNames[location.id] ?? location.name}</option>)}
-          </select>
-        </label>
+        <div><span className="section-kicker">Resumen global</span><h2>Panorama de las 7 zonas comerciales en SSC</h2><p>Todas las ubicaciones · Indicadores consolidados de todo el polígono comercial del aeropuerto.</p></div>
       </div>
       <div className="executive-kpis">
         <article className="executive-kpi"><strong>{numberFormat.format(allRecords.length)}</strong><span>Total de espacios</span></article>
@@ -232,10 +261,15 @@ export default function GlobalSummary({ datasets, onSelectLocation }: { datasets
         <article className="executive-kpi"><strong>{allRecords.length ? numberFormat.format((operating / allRecords.length) * 100) : 0}%</strong><span>Ocupación global</span></article>
         <article className="executive-kpi"><strong>{numberFormat.format(totalArea)}</strong><span>M² registrados</span></article>
       </div>
+      <div className="executive-kpis">
+        <article className="executive-kpi"><strong>{currencyFormat.format(totalMonthlyRent)}</strong><span>Renta Mensual Total</span><small>De {activeFinances.length} locales operando</small></article>
+        <article className="executive-kpi"><strong>{currencyFormat.format(avgRentPerM2)}/m²</strong><span>Renta Promedio por M²</span><small>Solo tarifa base</small></article>
+        <article className="executive-kpi"><strong>{numberFormat.format(activeContracts.length)}</strong><span>Instrumentos contractuales</span><small>GSC: {numberFormat.format(contractGSC)} · GEP: {numberFormat.format(contractGEP)}</small></article>
+      </div>
       <div className="executive-grid">
         <GlobalDonut title="Distribución de Espacios Comerciales" kicker="Participación por Zona" data={inventory} center="espacios" />
         <GlobalSurfaceBars data={surface} />
-        <GlobalStatusDonuts key={selectedLocationId} records={locatedRecords} />
+        <GlobalStatusDonuts records={locatedRecords} />
       </div>
       <article className="availability-card global-matrix-card">
         <div className="availability-heading"><div><span className="section-kicker">Matriz operativa</span><h2>Consulta rápida por zona</h2></div><strong>{visibleRows.length === 1 ? "1 zona comercial" : "7 zonas comerciales"}</strong></div>

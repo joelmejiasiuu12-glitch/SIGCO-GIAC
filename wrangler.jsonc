@@ -13,5 +13,12 @@
   },
   "images": {
     "binding": "IMAGES"
-  }
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "sigco-giac-db",
+      "database_id": "4676fc0b-b6cb-4bc0-9ec5-3efb90fe2efa"
+    }
+  ]
 }

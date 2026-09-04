@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import type { AnalysisTarget, EtpCommercialCapacityData, LocalRecord, PassengerTrafficRecord } from "@/app/types";
 import { LocationIndicators } from "./DirectoryAnalytics";
 
@@ -79,7 +79,7 @@ type ModulePerformance = {
   records: LocalRecord[];
 };
 
-type PortfolioField = "giroOperativo" | "lado" | "nivel" | "area";
+type PortfolioField = "giroOperativo" | "giroIata" | "lado" | "nivel" | "area";
 type PortfolioAnalysisKind = "giro" | "zona" | "nivel" | "area";
 
 type PortfolioInsight = {
@@ -942,90 +942,98 @@ export function CommercialCapacityAnalysis({
   const capacityGapPercent = commercialPassengerCapacity && capacityGap !== null ? (capacityGap / commercialPassengerCapacity) * 100 : null;
   const surfaceCoverage = capacity ? (capacity.leasedCommercialArea / capacity.recommendedCommercialArea) * 100 : null;
 
+  const [evidenceOpen, setEvidenceOpen] = useState(false);
+
   return (
     <section className="commercial-capacity-unified-card" aria-label="Análisis Integral de Capacidad de Atención Comercial">
       <header className="capacity-unified-header">
         <div>
-          <span className="section-kicker">Lectura Ejecutiva Integral</span>
+          <span className="section-kicker">Lectura ejecutiva y acción recomendada</span>
           <h3>Capacidad de Atención Comercial vs. Tráfico de Pasajeros</h3>
         </div>
         <span className="commercial-capacity-status">En Meta · Holgura Suficiente</span>
       </header>
 
-      <div className="capacity-unified-kpis">
+      <div className="capacity-unified-kpis commercial-capacity-executive-metrics">
         <article className="capacity-kpi-block tone-green">
           <span>Capacidad Comercial Anual</span>
           <strong>{commercialPassengerCapacity === null ? "Sin dato" : `${passengerFormat.format(commercialPassengerCapacity)} Pax`}</strong>
           <small>Soportada por {capacity ? `${numberFormat.format(capacity.leasedCommercialArea)} m² arrendados` : "superficie ETP"}</small>
         </article>
         <article className="capacity-kpi-block tone-navy">
-          <span>Demanda Proyectada {currentYear ?? ""}</span>
+          <span>Crecimiento de pasajeros</span>
           <strong>{projectedPassengers === null ? "Sin dato" : `${passengerFormat.format(projectedPassengers)} Pax`}</strong>
           <small>{yearToDateGrowth !== null ? `${yearToDateGrowth >= 0 ? "+" : ""}${numberFormat.format(yearToDateGrowth)}% vs periodo anterior` : "Base acumulada"}</small>
         </article>
         <article className="capacity-kpi-block tone-gold">
-          <span>Utilización Comercial</span>
+          <span>Utilización proyectada {currentYear ?? "actual"}</span>
           <strong>{projectedUsage === null ? "Sin dato" : `${numberFormat.format(projectedUsage)}%`}</strong>
           <small>{actualUsagePreviousYear !== null ? `Cierre ${comparisonYear}: ${numberFormat.format(actualUsagePreviousYear)}%` : "Sobre capacidad actual"}</small>
         </article>
         <article className="capacity-kpi-block tone-blue">
-          <span>Holgura Disponible</span>
+          <span>Holgura de capacidad</span>
           <strong>{capacityGap === null ? "Sin dato" : `${passengerFormat.format(capacityGap)} Pax`}</strong>
           <small>{capacityGapPercent !== null ? `${numberFormat.format(capacityGapPercent)}% capacidad remanente` : "Margen sin saturación"}</small>
         </article>
       </div>
 
-      <div className="capacity-unified-narrative-box">
+      <div className="capacity-unified-narrative-box commercial-capacity-decision">
         <div className="narrative-section diagnostic">
-          <div className="narrative-tag">Diagnóstico Integral</div>
+          <div className="narrative-tag">Lectura ejecutiva y acción recomendada</div>
           <p>
             {commercialPassengerCapacity === null || projectedPassengers === null
               ? "Se requieren datos válidos de CAPACIDAD y PASAJEROS para construir la lectura ejecutiva."
-              : `La superficie comercial arrendada (${capacity ? `${numberFormat.format(capacity.leasedCommercialArea)} m²` : "en ETP"}) equivale a una capacidad comercial anual de ${passengerFormat.format(commercialPassengerCapacity)} pasajeros. Frente a una demanda proyectada de ${passengerFormat.format(projectedPassengers)} pasajeros para ${currentYear ?? "el año en curso"}, la utilización comercial se ubica en ${projectedUsage !== null ? `${numberFormat.format(projectedUsage)}%` : "—"}, manteniendo una holgura remanente de ${capacityGap !== null ? `${passengerFormat.format(capacityGap)} pasajeros` : "—"}. Esta holgura confirma que el aeropuerto cuenta con amplio margen operativo y que el reto actual no es la saturación física, sino la aceleración de la demanda comercial.`}
+              : `La superficie comercial arrendada (${capacity ? `${numberFormat.format(capacity.leasedCommercialArea)} m²` : "en ETP"}) equivale a una capacidad comercial anual de ${passengerFormat.format(commercialPassengerCapacity)} pasajeros. Frente a una demanda proyectada de ${passengerFormat.format(projectedPassengers)} pasajeros para ${currentYear ?? "el año en curso"}, la utilización comercial se ubica en ${projectedUsage !== null ? `${numberFormat.format(projectedUsage)}%` : "—"}, manteniendo una holgura remanente de ${capacityGap !== null ? `${passengerFormat.format(capacityGap)} pasajeros` : "—"}. La capacidad no es el límite; la oportunidad está en monetizar la demanda creciente. La prioridad es convertir esa holgura en rentabilidad.`}
           </p>
         </div>
 
         <div className="narrative-section action">
           <div className="action-tag-row">
-            <div className="narrative-tag action-tag">Acción Estratégica Recomendada</div>
+            <div className="narrative-tag action-tag">Decisión recomendada:</div>
             <span className="action-priority-pill">Prioridad Inmediata</span>
           </div>
           <p>
-            Mantener una expansión comercial selectiva: priorizar la activación y monetización de los {passengerFormat.format(available)} locales disponibles con mayor potencial de venta y aportación al Tenant Mix, antes de planear expansiones de superficie bruta generalizada.
+            Decisión recomendada: mantener una expansión comercial selectiva: priorizar la activación y monetización de los {passengerFormat.format(available)} locales disponibles con mayor potencial de venta y aportación al Tenant Mix, antes de planear expansiones de superficie bruta generalizada.
           </p>
         </div>
       </div>
 
+      <div className="commercial-capacity-evidence-toggle">
+        <button type="button" className="secondary-button" aria-expanded={evidenceOpen} onClick={() => setEvidenceOpen((c) => !c)}>
+          Ver sustento del análisis
+        </button>
+      </div>
+
       {capacity && (
-        <div className="capacity-unified-foundation">
+        <div className="capacity-unified-foundation commercial-capacity-foundation commercial-capacity-kpis">
           <div className="foundation-box">
-            <span>Capacidad de Diseño ETP</span>
+            <span>Capacidad de diseño ETP</span>
             <strong>{passengerFormat.format(capacity.terminalPassengerCapacity)} Pax</strong>
             <small>Hoja CAPACIDAD (A2)</small>
           </div>
           <div className="foundation-box">
-            <span>Coeficiente Comercial</span>
+            <span>Coeficiente comercial</span>
             <strong>{capacity.commercialAreaFactor.toFixed(6)}</strong>
             <small>Hoja CAPACIDAD (A5)</small>
           </div>
           <div className="foundation-box">
-            <span>Superficie Recomendada</span>
+            <span>Superficie recomendada</span>
             <strong>{numberFormat.format(capacity.recommendedCommercialArea)} m²</strong>
             <small>Diseño × Coeficiente</small>
           </div>
           <div className="foundation-box">
-            <span>Superficie Arrendada</span>
+            <span>Superficie arrendada</span>
             <strong>{numberFormat.format(capacity.leasedCommercialArea)} m²</strong>
-            <small>Cobertura {surfaceCoverage !== null ? `${numberFormat.format(surfaceCoverage)}%` : "—"}</small>
+            <small>Cobertura de superficie {surfaceCoverage !== null ? `${numberFormat.format(surfaceCoverage)}%` : "—"}</small>
           </div>
         </div>
       )}
 
-      <article className="capacity-unified-history">
+      <article className="commercial-capacity-history capacity-unified-history commercial-capacity-evidence">
         <header>
           <div>
             <span className="section-kicker">Serie Histórica y Proyección {years.length ? `${years[0]}–${currentYear}` : ""}</span>
-            <h4>Tráfico anual de pasajeros frente a la capacidad comercial instalada</h4>
+            <h4>Tráfico frente a capacidad comercial actual</h4>
           </div>
           <small>Base actual de datos</small>
         </header>
@@ -1046,7 +1054,7 @@ export function CommercialCapacityAnalysis({
           {!trafficSeries.length && <p className="commercial-capacity-empty">Carga la hoja PASAJEROS para generar la serie histórica.</p>}
         </div>
         <p className="commercial-capacity-method">
-          * {currentYear === null || projectedPassengers === null ? "Proyección pendiente de la hoja PASAJEROS." : `El valor ${currentYear} es una proyección anualizada con ${currentRealRecords.length} meses completos (${passengerFormat.format(currentYearToDate)} pasajeros acumulados).`} Los años históricos se contrastan contra la capacidad comercial contratada actual; el indicador no sustituye una evaluación operativa por hora pico.
+          * {currentYear === null || projectedPassengers === null ? "Proyección pendiente de la hoja PASAJEROS." : `El valor ${currentYear} es una proyección anualizada con ${currentRealRecords.length} meses completos (${passengerFormat.format(currentYearToDate)} pasajeros acumulados).`} Se excluye el registro parcial si existe. Los años históricos se contrastan contra la capacidad comercial contratada actual; el indicador no sustituye una evaluación operativa por hora pico.
         </p>
       </article>
     </section>
@@ -1252,6 +1260,7 @@ export default function SummaryDashboard({
   onOpenDirectory,
   onOpenBrand,
   onOpenAnalysis,
+  onOpenCapacityUpdate,
 }: {
   records: LocalRecord[];
   locationId: string;
@@ -1261,6 +1270,7 @@ export default function SummaryDashboard({
   onOpenDirectory: () => void;
   onOpenBrand: (brand: string) => void;
   onOpenAnalysis: (indicator: AnalysisTarget) => void;
+  onOpenCapacityUpdate?: () => void;
 }) {
   const capitalizedLabel = `${recordLabel.charAt(0).toUpperCase()}${recordLabel.slice(1)}`;
   const totalArea = records.reduce((sum, record) => sum + (record.metraje ?? 0), 0);
@@ -1279,6 +1289,16 @@ export default function SummaryDashboard({
   const [selectedVacancyFact, setSelectedVacancyFact] = useState<string | null>(null);
   const [vacancyAnalysisOpen, setVacancyAnalysisOpen] = useState(false);
   const selectedVacancyPreview = vacancyInsight?.facts.find((fact) => fact.label === selectedVacancyFact) ?? null;
+
+  // Mezcla de oferta basada en Giro IATA (con fallback a Giro Operativo)
+  const giroIataData = useMemo(() => {
+    const counts = new Map<string, number>();
+    records.forEach((record) => {
+      const val = String(record.giroIata || record.giroOperativo || "Sin giro asignado").trim() || "Sin giro asignado";
+      counts.set(val, (counts.get(val) ?? 0) + 1);
+    });
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  }, [records]);
 
   const availability = [...new Set(records.map((record) => record.lado || "Sin dato"))]
     .map((lado) => {
@@ -1316,7 +1336,33 @@ export default function SummaryDashboard({
           <div>
             <div className="commercial-capacity-heading"><div><span className="section-kicker">Indicador de atención</span><h2>Capacidad de Atención Comercial</h2></div></div>
             <p>Capacidad equivalente calculada con la superficie arrendada, el coeficiente comercial y la capacidad de diseño registrados en el Excel.</p>
-            <button className="indicator-analysis-link" type="button" onClick={() => onOpenAnalysis("capacity")}><span><small>Análisis disponible</small><strong>Lectura ejecutiva y acción recomendada</strong></span><b>Ver análisis →</b></button>
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "10px" }}>
+              <button className="indicator-analysis-link" type="button" onClick={() => onOpenAnalysis("capacity")}>
+                <span><small>Análisis disponible</small><strong>Lectura ejecutiva y acción recomendada</strong></span>
+                <b>Ver análisis →</b>
+              </button>
+              {onOpenCapacityUpdate && (
+                <button
+                  type="button"
+                  onClick={onOpenCapacityUpdate}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "8px 14px",
+                    background: "#09212e",
+                    color: "#ffffff",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontWeight: 600,
+                    fontSize: "12px",
+                  }}
+                >
+                  ✏️ Actualizar Datos (Subdirección)
+                </button>
+              )}
+            </div>
           </div>
           <div className="commercial-capacity-value">
             <strong>{etpCommercialCapacity === null ? "Sin dato" : passengerFormat.format(etpCommercialCapacity.commercialPassengerCapacity)}</strong>
@@ -1330,7 +1376,7 @@ export default function SummaryDashboard({
 
       <div className="executive-grid">
         <StatusOverview title={statusTitle} records={records} recordLabel={recordLabel} />
-        <DonutChart title="Giro comercial" kicker="Mezcla de oferta" data={countBy(records, "giroOperativo")} center={recordLabel} analysis={{ records, field: "giroOperativo", kind: "giro" }} onOpenFullAnalysis={() => onOpenAnalysis("mix")} />
+        <DonutChart title="Giro comercial (IATA)" kicker="Mezcla de oferta" data={giroIataData} center={recordLabel} analysis={{ records, field: "giroIata", kind: "giro" }} onOpenFullAnalysis={() => onOpenAnalysis("mix")} />
         {showZone && <DonutChart title="Distribución por zona" kicker="Implantación territorial" data={countBy(records, "lado")} center={recordLabel} colors={["#405364", "#ac182c", "#00886f"]} analysis={{ records, field: "lado", kind: "zona" }} />}
         {showLevels && <VerticalBars title={`${capitalizedLabel} por nivel`} kicker="Implantación vertical" data={levels} color="#09212e" totalLabel={recordLabel} analysis={{ records, field: "nivel", kind: "nivel" }} onOpenFullAnalysis={() => onOpenAnalysis("levels")} />}
         {showAreaType && <DonutChart title="Tipo de área" kicker="Ubicación operativa" data={countBy(records, "area")} center={recordLabel} colors={["#00886f", "#405364", "#ac182c"]} analysis={{ records, field: "area", kind: "area" }} onOpenFullAnalysis={() => onOpenAnalysis("area_type")} />}

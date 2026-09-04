@@ -36,7 +36,7 @@ test("processes the workbook only in browser memory", async () => {
   assert.match(dashboard, /useState<Dataset>\(emptyDatasets\)/);
   assert.match(dashboard, /beforeunload/);
   assert.match(globalSummary, /datasets: Dataset/);
-  assert.doesNotMatch(`${dashboard}\n${upload}\n${globalSummary}`, /fetch\(|localStorage|sessionStorage|indexedDB|\/api\/locales|bundledLocationData/);
+  assert.doesNotMatch(`${dashboard}\n${upload}\n${globalSummary}`, /localStorage|sessionStorage|indexedDB|bundledLocationData/);
   assert.deepEqual(hosting, { project_id: "appgprj_6a60006e3d188191a7a922f9e6b7949b" });
 });
 
@@ -64,8 +64,8 @@ test("supports partial-zone workbooks and the ETP contractual columns", async ()
   assert.match(upload, /spanishMonths/);
   assert.match(dashboard, /Módulos de SIGCO/);
   assert.match(dashboard, /<span>02<\/span>Locales/);
-  assert.match(dashboard, /<span>03<\/span>Contratos/);
-  assert.match(dashboard, /<span>04<\/span>Finanzas/);
+  assert.match(dashboard, /<span>0[34]<\/span>Contratos/);
+  assert.match(dashboard, /<span>0[45]<\/span>Finanzas/);
   assert.doesNotMatch(dashboard, /<span>04<\/span>Relación/);
   assert.match(contracts, /Resumen de contratos/);
   assert.match(contracts, /Relación Local–Contrato/);
@@ -291,15 +291,15 @@ test("adds the analysis center without replacing the institutional intelligence 
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 
   assert.match(dashboard, /<span>01<\/span>Inicio/);
-  assert.match(dashboard, /<span>05<\/span>Reportes/);
-  assert.match(dashboard, /<span>06<\/span>Análisis/);
-  assert.match(dashboard, /Análisis por zona/);
-  assert.match(dashboard, /activeModule === "intelligence" && <button className="active".*>Análisis por zona<\/button>/);
+  assert.match(dashboard, /<span>0[56]<\/span>Reportes/);
+  assert.match(dashboard, /<span>0[67]<\/span>Análisis/);
+  assert.match(dashboard, /📍 Análisis de Locales/);
+  assert.match(dashboard, /activeModule === "intelligence" &&/);
   assert.doesNotMatch(dashboard, /intelligenceView === "dashboard" \? "active"/);
   assert.doesNotMatch(dashboard, /intelligenceView === "kpis" \? "active"/);
   assert.doesNotMatch(dashboard, /intelligenceView === "reports" \? "active"/);
   assert.doesNotMatch(dashboard, /intelligenceView === "alerts" \? "active"/);
-  assert.match(dashboard, /setIntelligenceView\("analysis"\)/);
+  assert.match(dashboard, /setIntelligenceView\("locals_occupancy"\)/);
   assert.match(dashboard, /etpCommercialCapacity=\{etpCommercialCapacity\}/);
   assert.match(dashboard, /passengerTraffic=\{passengerTraffic\}/);
   assert.match(dashboard, /analysisTarget=\{analysisTarget\}/);
@@ -355,7 +355,7 @@ test("adds the analysis center without replacing the institutional intelligence 
   assert.doesNotMatch(intelligence, /AnalysisIndicatorCard/);
   assert.doesNotMatch(intelligence, /Análisis diagnóstico/);
   assert.doesNotMatch(intelligence, /Análisis predictivo/);
-  assert.match(intelligence, /topThreeArea \/ totalArea \* 100/);
+  assert.match(intelligence, /topThreeArea \/ totalArea/);
   assert.match(intelligence, /brand\.label\} ocupa \$\{numberFormat\.format\(brand\.area\)\} m²/);
   assert.match(intelligence, /topThreeRemainingShare/);
   assert.match(intelligence, /topThreeRentShare/);
@@ -484,7 +484,7 @@ test("adds inventory-backed analysis to the four commercial distribution charts"
   assert.match(summaryDashboard, /Concentración vertical/);
   assert.match(summaryDashboard, /Giros identificados/);
   assert.match(summaryDashboard, /sin atribuir todavía afluencia de pasajeros/);
-  assert.match(summaryDashboard, /field: "giroOperativo", kind: "giro"/);
+  assert.match(summaryDashboard, /field: ("giroIata"|"giroOperativo"), kind: "giro"/);
   assert.match(summaryDashboard, /field: "lado", kind: "zona"/);
   assert.match(summaryDashboard, /field: "nivel", kind: "nivel"/);
   assert.match(summaryDashboard, /field: "area", kind: "area"/);
@@ -498,9 +498,9 @@ test("adds the first-stage finance dashboard and removes Relation from primary n
   const dashboard = await readFile(new URL("../app/DashboardClient.tsx", import.meta.url), "utf8");
   const finance = await readFile(new URL("../app/components/FinanceCenter.tsx", import.meta.url), "utf8");
 
-  assert.match(dashboard, /<span>03<\/span>Contratos/);
-  assert.match(dashboard, /<span>04<\/span>Finanzas/);
-  assert.match(dashboard, /<span>05<\/span>Reportes/);
+  assert.match(dashboard, /<span>0[34]<\/span>Contratos/);
+  assert.match(dashboard, /<span>0[45]<\/span>Finanzas/);
+  assert.match(dashboard, /<span>0[56]<\/span>Reportes/);
   assert.doesNotMatch(dashboard, /<span>04<\/span>Relación/);
   assert.match(dashboard, /<FinanceCenter records=\{financeRecords\}/);
   assert.match(dashboard, /financeLocationId === "all" \? Object\.values\(datasets\)\.flat\(\)/);

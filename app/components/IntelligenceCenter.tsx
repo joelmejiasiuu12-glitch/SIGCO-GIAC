@@ -5,13 +5,13 @@ import { locationOptions, type AnalysisTarget, type EtpCommercialCapacityData, t
 import { CommercialCapacityAnalysis, ModuleBcgAnalysisCard } from "./SummaryDashboard";
 import ZoneMatrixComparison from "./ZoneMatrixComparison";
 import FinanceCenter from "./FinanceCenter";
-import { TenantScorecardWrapper } from "./ContractCenter";
+import FinancialIntelligenceView from "./FinancialIntelligenceView";
 
 export type IntelligenceView =
   | "locals_occupancy"
-  | "contracts_validity"
   | "finance_collections"
-  | "matrix";
+  | "matrix"
+  | "reports";
 
 type Dataset = Record<string, LocalRecord[]>;
 type LocatedRecord = LocalRecord & { locationId: string; locationName: string };
@@ -133,6 +133,7 @@ type ZoneAnalysisMetric = {
 
 export default function IntelligenceCenter({
   datasets,
+  contractRecords = [],
   view,
   sourceFile,
   sourceUpdatedAt,
@@ -146,6 +147,7 @@ export default function IntelligenceCenter({
   onOpenLocal,
 }: {
   datasets: Dataset;
+  contractRecords?: LocalRecord[];
   view: IntelligenceView;
   sourceFile: string;
   sourceUpdatedAt: string | null;
@@ -159,7 +161,11 @@ export default function IntelligenceCenter({
   onOpenLocal?: (nomenclature: string, locationId: string | null) => void;
 }) {
   const intelligence = useMemo(() => {
-    const records: LocatedRecord[] = locationOptions.flatMap((location) =>
+    const rawLocations = locationId === "all"
+      ? locationOptions
+      : locationOptions.filter((loc) => loc.id === locationId);
+
+    const records: LocatedRecord[] = rawLocations.flatMap((location) =>
       (datasets[location.id] ?? []).map((record) => ({
         ...record,
         locationId: location.id,
@@ -391,6 +397,10 @@ export default function IntelligenceCenter({
     );
   }
 
+  if (view === "reports") {
+    return null;
+  }
+
   if (view === "matrix") {
     return (
       <ZoneMatrixComparison
@@ -404,8 +414,11 @@ export default function IntelligenceCenter({
   }
 
   if (view === "locals_occupancy") {
-    const selectedLocation = locationOptions.find((location) => location.id === locationId) ?? locationOptions[0];
-    const selectedRecords = datasets[selectedLocation.id] ?? [];
+    const isAll = locationId === "all";
+    const selectedLocation = isAll
+      ? { id: "all", shortName: "Todas las zonas comerciales", fullName: "Todas las zonas comerciales" }
+      : (locationOptions.find((location) => location.id === locationId) ?? locationOptions[0]);
+    const selectedRecords = intelligence.records;
     const availableRecords = selectedRecords.filter((record) => record.estatus === "DISPONIBLE");
     const operatingRecords = selectedRecords.filter((record) => record.estatus === "EN FUNCIONAMIENTO");
     const availableCount = availableRecords.length;
@@ -434,11 +447,17 @@ export default function IntelligenceCenter({
       current.area += record.metraje ?? 0;
       brandsByArea.set(id, current);
     });
+    const occupiedRecords = selectedRecords.filter((record) =>
+      ["EN FUNCIONAMIENTO", "EN ADAPTACION", "FORMALIZADO"].includes(record.estatus) || validBrandedRecords.includes(record),
+    );
+    const occupiedArea = occupiedRecords.reduce((sum, record) => sum + (record.metraje ?? 0), 0);
     const topThreeBrands = [...brandsByArea.values()].sort((a, b) => b.area - a.area).slice(0, 3);
     const topThreeArea = topThreeBrands.reduce((sum, brand) => sum + brand.area, 0);
-    const topThreeShare = totalArea > 0 && topThreeBrands.length ? topThreeArea / totalArea * 100 : null;
+    const topThreeShare = occupiedArea > 0 && topThreeBrands.length ? (topThreeArea / occupiedArea) * 100 : (totalArea > 0 && topThreeBrands.length ? (topThreeArea / totalArea) * 100 : null);
+    const topThreeTotalShare = totalArea > 0 && topThreeBrands.length ? (topThreeArea / totalArea) * 100 : null;
     const topThreeRemainingShare = topThreeShare === null ? null : Math.max(100 - topThreeShare, 0);
     const averageTopThreeShare = topThreeShare === null || !topThreeBrands.length ? null : topThreeShare / topThreeBrands.length;
+
     const topThreeBrandIds = new Set(topThreeBrands.map((brand) => normalized(brand.label).trim()));
     const operatingRecordsWithRent = operatingRecords.filter((record) => record.monthlyRent !== null && record.monthlyRent > 0);
     const knownOperatingRent = operatingRecordsWithRent.reduce((sum, record) => sum + record.monthlyRent!, 0);
@@ -648,7 +667,7 @@ export default function IntelligenceCenter({
         statusTone: topThreeShare && topThreeShare > 40 ? "risk" : topThreeShare && topThreeShare > 20 ? "watch" : "ok",
         analysis: topThreeShare === null || topThreeRemainingShare === null || averageTopThreeShare === null
           ? "No existe superficie y marca suficientes para medir la concentración de los principales ocupantes."
-          : `${topThreeShare <= 20 ? "El indicador muestra una alta diversificación y una baja dependencia espacial de las principales marcas." : topThreeShare <= 40 ? "El indicador muestra una concentración espacial moderada que requiere seguimiento." : "El indicador muestra una concentración espacial alta y una dependencia relevante de los principales ocupantes."} ${topThreeBrands.map((brand) => `${brand.label} ocupa ${numberFormat.format(brand.area)} m²`).join("; ")}. En conjunto representan ${numberFormat.format(topThreeArea)} de ${numberFormat.format(totalArea)} m², equivalentes al ${numberFormat.format(topThreeShare)}%; el ${numberFormat.format(topThreeRemainingShare)}% restante se distribuye entre las demás marcas y espacios. La exposición promedio del Top 3 equivale al ${numberFormat.format(averageTopThreeShare)}% por marca, aunque la participación individual varía. ${topThreeShare <= 20 ? "Esta distribución reduce el riesgo de que la salida de un solo operador genere una vacancia extensa y conserva flexibilidad para reconfigurar locales o incorporar nuevos conceptos." : "La salida de una de estas marcas podría generar una afectación visible en la ocupación y exige seguimiento individual."} ${topThreeRentShare === null || knownRentCoverage === null ? "El resultado mide concentración por superficie; la base todavía no permite confirmar la concentración financiera." : `Al cruzarlo con la renta mensual registrada, estas marcas aportan ${numberFormat.format(topThreeRentShare)}% de la renta operativa identificada, con una cobertura de datos de ${numberFormat.format(knownRentCoverage)}%. ${topThreeRentShare > 40 ? "La diversificación espacial no elimina una posible dependencia financiera." : "El cruce no muestra una dependencia financiera alta en la información disponible."}`}`,
+          : `${topThreeShare <= 20 ? "El indicador muestra una alta diversificación y una baja dependencia espacial de las principales marcas." : topThreeShare <= 40 ? "El indicador muestra una concentración espacial moderada que requiere seguimiento." : "El indicador muestra una concentración espacial alta y una dependencia relevante de los principales ocupantes."} ${topThreeBrands.map((brand) => `${brand.label} ocupa ${numberFormat.format(brand.area)} m²`).join("; ")}. En conjunto representan ${numberFormat.format(topThreeArea)} de ${numberFormat.format(occupiedArea)} m² arrendados, equivalentes al ${numberFormat.format(topThreeShare)}% de la cartera ocupada${topThreeTotalShare !== null ? ` (${numberFormat.format(topThreeTotalShare)}% del inventario total)` : ""}; el ${numberFormat.format(topThreeRemainingShare)}% restante de la cartera se distribuye entre las demás marcas y espacios. La exposición promedio del Top 3 equivale al ${numberFormat.format(averageTopThreeShare)}% por marca, aunque la participación individual varía. ${topThreeShare <= 20 ? "Esta distribución reduce el riesgo de que la salida de un solo operador genere una vacancia extensa y conserva flexibilidad para reconfigurar locales o incorporar nuevos conceptos." : "La salida de una de estas marcas podría generar una afectación visible en la ocupación y exige seguimiento individual."} ${topThreeRentShare === null || knownRentCoverage === null ? "El resultado mide concentración por superficie; la base todavía no permite confirmar la concentración financiera." : `Al cruzarlo con la renta mensual registrada, estas marcas aportan ${numberFormat.format(topThreeRentShare)}% de la renta operativa identificada, con una cobertura de datos de ${numberFormat.format(knownRentCoverage)}%. ${topThreeRentShare > 40 ? "La diversificación espacial no elimina una posible dependencia financiera." : "El cruce no muestra una dependencia financiera alta en la información disponible."}`}`,
         action: topThreeShare === null
           ? "Completar marca y metraje antes de evaluar la concentración."
           : topThreeRentShare !== null && topThreeRentShare > 40
@@ -804,11 +823,6 @@ export default function IntelligenceCenter({
             >
               <div className="metric-card-header">
                 <span className="metric-card-title">{metric.name}</span>
-                {metric.statusBadge && (
-                  <span className={`metric-status-badge tone-${metric.statusTone ?? "info"}`}>
-                    {metric.statusBadge}
-                  </span>
-                )}
               </div>
               <div className="metric-card-body">
                 <strong className="metric-card-value">{metric.value}</strong>
@@ -840,11 +854,6 @@ export default function IntelligenceCenter({
                   <h3>{selectedMetric.name}</h3>
                 </div>
                 <div className="detail-header-value-group">
-                  {selectedMetric.statusBadge && (
-                    <span className={`metric-status-badge tone-${selectedMetric.statusTone ?? "info"}`}>
-                      {selectedMetric.statusBadge}
-                    </span>
-                  )}
                   <strong>{selectedMetric.value}</strong>
                 </div>
               </header>
@@ -943,22 +952,12 @@ export default function IntelligenceCenter({
     );
   }
 
-  if (view === "contracts_validity") {
+  if (view === "finance_collections") {
     return (
-      <TenantScorecardWrapper
+      <FinancialIntelligenceView
         records={intelligence.records}
         onOpenLocal={onOpenLocal}
-      />
-    );
-  }
-
-  if (view === "finance_collections") {
-    const activeLoc = locationOptions.find((loc) => loc.id === locationId);
-    return (
-      <FinanceCenter
-        records={intelligence.records}
-        scopeLabel={activeLoc?.name ?? "Todas las zonas comerciales"}
-        subTab="billed_vs_recovered"
+        onUpload={onUpload}
       />
     );
   }

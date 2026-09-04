@@ -119,16 +119,19 @@ export default function ZoneMatrixComparison({
       const averageArea = validAreas.length > 0 ? totalArea / validAreas.length : null;
 
       // Brand concentration
-      const brandMap = new Map<string, { label: string; count: number; area: number }>();
-      occupiedRecords.forEach((r) => {
+      const validBrandedRecords = records.filter((r) => {
         const rawBrand = String(r.marca ?? "").trim();
         const norm = normalized(rawBrand);
-        if (
-          !norm ||
-          ["n/a", "na", "sin marca", "por definir", "ninguno", "-", "pendiente", "disponible"].includes(norm)
-        ) {
-          return;
-        }
+        return (
+          norm &&
+          !["n/a", "na", "sin marca", "por definir", "ninguno", "-", "pendiente", "disponible"].includes(norm)
+        );
+      });
+
+      const brandMap = new Map<string, { label: string; count: number; area: number }>();
+      validBrandedRecords.forEach((r) => {
+        const rawBrand = String(r.marca ?? "").trim();
+        const norm = normalized(rawBrand);
         const current = brandMap.get(norm) ?? { label: rawBrand, count: 0, area: 0 };
         current.count += 1;
         current.area += r.metraje ?? 0;
@@ -139,8 +142,11 @@ export default function ZoneMatrixComparison({
       const sortedBrands = [...brandMap.values()].sort((a, b) => b.area - a.area || b.count - a.count);
       const top3Brands = sortedBrands.slice(0, 3);
       const top3Area = top3Brands.reduce((sum, b) => sum + b.area, 0);
-      const top3BrandShare = occupiedArea > 0 && top3Brands.length > 0 ? (top3Area / occupiedArea) * 100 : null;
+      const top3BrandShare = occupiedArea > 0 && top3Brands.length > 0 ? (top3Area / occupiedArea) * 100 : (totalArea > 0 && top3Brands.length > 0 ? (top3Area / totalArea) * 100 : null);
+
       const top3BrandsText = top3Brands.map((b) => b.label).join(", ") || "Sin marcas tractoras";
+
+
 
       // Maturity classification
       let maturityStatus: ZoneMetricRow["maturityStatus"] = "no_data";

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import readXlsxFile, { type CellValue, type SheetData } from "read-excel-file/browser";
-import { locationOptions, type ContractStage, type EtpCommercialCapacityData, type LocalRecord, type PassengerTrafficRecord } from "@/app/types";
+import { getSpaceType, locationOptions, type ContractStage, type EtpCommercialCapacityData, type LocalRecord, type PassengerTrafficRecord } from "@/app/types";
 import { isCommercialServicesEtpRecord } from "@/app/data/recordVisibility";
 
 export type LocalWorkbookResult = {
@@ -14,7 +14,7 @@ export type LocalWorkbookResult = {
   passengerTraffic: PassengerTrafficRecord[];
 };
 
-type ParsedField = keyof LocalRecord | "metrajeConstruido" | "daysRemaining" | "sourceZone";
+type ParsedField = keyof LocalRecord | "metrajeConstruido" | "daysRemaining" | "sourceZone" | "razonSocial" | "costPerM2Vigente" | "monthlyRentVigente" | "participationRateVigente" | "zonaComercial";
 type ParsedRow = Partial<Record<ParsedField, CellValue | null>>;
 type ParsedLocation = {
   locationId: string;
@@ -45,10 +45,23 @@ const sheetDefinitions = [
   { sheetName: "Calz. Mamuts", locationId: "calzada-mamuts" },
 ] as const;
 
-const contractSheetDefinitions: { sheetName: string; stage: ContractStage }[] = [
-  { sheetName: "Contratos Cancelados", stage: "cancelled" },
-  { sheetName: "Contratos Fenecidos", stage: "expired" },
-  { sheetName: "Convenios", stage: "agreements" },
+type ContractSheetDefinition = {
+  sheetName: string;
+  stage: ContractStage | null;
+  defaultGerencia: string;
+};
+
+const contractSheetDefinitions: ContractSheetDefinition[] = [
+  { sheetName: "CONTRATOS GSC", stage: null, defaultGerencia: "Gerencia de Servicios Comerciales" },
+  { sheetName: "CONTRATOS GEP", stage: null, defaultGerencia: "Gerencia de Espacios Publicitarios" },
+  { sheetName: "CONTRATOS CANCELADOS", stage: "cancelled", defaultGerencia: "Gerencia de Servicios Comerciales" },
+  { sheetName: "CONTRATOS FENECIDOS", stage: "expired", defaultGerencia: "Gerencia de Servicios Comerciales" },
+  { sheetName: "CANCELADOS", stage: "cancelled", defaultGerencia: "Gerencia de Servicios Comerciales" },
+  { sheetName: "FENECIDOS", stage: "expired", defaultGerencia: "Gerencia de Servicios Comerciales" },
+  { sheetName: "CANCELADO", stage: "cancelled", defaultGerencia: "Gerencia de Servicios Comerciales" },
+  { sheetName: "FENECIDO", stage: "expired", defaultGerencia: "Gerencia de Servicios Comerciales" },
+  { sheetName: "CANCELADOS GSC", stage: "cancelled", defaultGerencia: "Gerencia de Servicios Comerciales" },
+  { sheetName: "FENECIDOS GSC", stage: "expired", defaultGerencia: "Gerencia de Servicios Comerciales" },
 ];
 
 const aliases: Record<string, ParsedField> = {
@@ -58,14 +71,26 @@ const aliases: Record<string, ParsedField> = {
   modulo: "modulo",
   metraje: "metraje",
   m2: "metraje",
+  "sup m2": "metraje",
+  superficie: "metraje",
   "metraje construido": "metrajeConstruido",
+  "tipo de local": "areaComercial",
+  "tipo local": "areaComercial",
+  "tipo de area": "areaComercial",
+  "tipo de área": "areaComercial",
+  "tipo de espacio": "areaComercial",
+  "tipo espacio": "areaComercial",
+  "tipo de inmueble": "areaComercial",
   "area comercial": "areaComercial",
+  "área comercial": "areaComercial",
   nivel: "nivel",
   estatus: "estatus",
   situacion: "situacion",
   "marca comercial": "marca",
   marca: "marca",
   empresa: "marca",
+  "razon social": "razonSocial",
+  "razón social": "razonSocial",
   "subdireccion encargada": "subdireccion",
   subdireccion: "subdireccion",
   gerencia: "gerencia",
@@ -78,30 +103,78 @@ const aliases: Record<string, ParsedField> = {
   "fecha de formalizacion": "fechaFormalizacion",
   "fecha de conclusion": "fechaConclusion",
   "no contrato": "contractNumber",
+  "no expediente": "contractNumber",
+  expediente: "contractNumber",
+  "numero de contrato": "contractNumber",
+  "num contrato": "contractNumber",
   contrato: "contractNumber",
-  "razon social": "marca",
+  "nombre comercial": "marca",
   nombre: "marca",
+  arrendatario: "razonSocial",
+  arrendataria: "razonSocial",
+  "descripcion o asunto": "observaciones",
+  "razon de conclusion": "observaciones",
+  cierre: "contractStatus",
   "giro comercial": "commercialLine",
   "subgiro comercial": "commercialSubline",
   "costo por m2": "costPerM2",
+  "costo por m2 vigente": "costPerM2Vigente",
+  "costo m2 vigente": "costPerM2Vigente",
   "renta mensual iva": "monthlyRent",
+  "renta mensual mas iva": "monthlyRent",
   "renta mensual": "monthlyRent",
+  "contraprestacion mensual mas iva": "monthlyRent",
+  "contraprestacion mensual iva": "monthlyRent",
+  "contraprestacion mensual": "monthlyRent",
+  "contraprestacion mas iva": "monthlyRent",
+  "contraprestacion": "monthlyRent",
+  "renta mensual mas iva vigente": "monthlyRentVigente",
+  "renta mensual iva vigente": "monthlyRentVigente",
+  "renta mensual vigente": "monthlyRentVigente",
+  "contraprestacion mensual mas iva vigente": "monthlyRentVigente",
+  "contraprestacion mensual iva vigente": "monthlyRentVigente",
+  "contraprestacion mensual vigente": "monthlyRentVigente",
+  "contraprestacion mas iva vigente": "monthlyRentVigente",
+  "contraprestacion vigente": "monthlyRentVigente",
   "participacion": "participationRate",
+  "participaciones": "participationRate",
+  "participacion vigente": "participationRateVigente",
+  "participaciones vigente": "participationRateVigente",
   "fecha de inicio de operaciones": "operationsStartDate",
   "fecha de firma de contrato": "signatureDate",
   "vigencia del contrato": "contractTerm",
   vigencia: "contractTerm",
   "fecha de renovacion": "renewalDate",
+  "fecha de termino": "renewalDate",
+  "fecha termino": "renewalDate",
+  "fecha de vencimiento": "renewalDate",
+  "fecha vencimiento": "renewalDate",
+  "vencimiento": "renewalDate",
+  "termino": "renewalDate",
+  "conclusion": "fechaConclusion",
   "dias restantes": "daysRemaining",
+  "días restantes": "daysRemaining",
+  "dias por vencer": "daysRemaining",
+  "días por vencer": "daysRemaining",
+  "dias restante": "daysRemaining",
+  "días restante": "daysRemaining",
   "garantia de complimiento": "guaranteeStatus",
   "garantia de cumplimiento": "guaranteeStatus",
   "poliza de r c": "liabilityPolicyStatus",
+  "poliza de rc": "liabilityPolicyStatus",
+  "poliza rc": "liabilityPolicyStatus",
   "proyecto de obra": "projectStatus",
   "situacion del contrato": "contractStatus",
+  "situacion de contrato": "contractStatus",
+  "estatus del contrato": "contractStatus",
+  "estatus de contrato": "contractStatus",
+  "situacion del local": "operationalStatus",
+  "situacion de local": "operationalStatus",
+  condicion: "situacion",
   "datos de contacto": "contactData",
   gestor: "manager",
   zona: "sourceZone",
-  "zona comercial": "sourceZone",
+  "zona comercial": "zonaComercial",
   ubicacion: "sourceZone",
 };
 
@@ -444,24 +517,62 @@ function structuralDefaults(locationId: string, raw: ParsedRow) {
 }
 
 function inferSpaceType(locationId: string, nomenclatura: string, giro: string) {
-  const searchable = `${normalized(nomenclatura)} ${normalized(giro)}`;
-  if (/cajero|atm/.test(searchable)) return "Cajero";
-  if (/bodega/.test(searchable)) return "Bodega";
-  if (/oficina/.test(searchable)) return "Oficina";
-  if (/publicidad|publicitario/.test(searchable)) return "Espacio publicitario";
-  if (/hotel/.test(searchable)) return "Hotel";
-  if (/maquina|vending/.test(searchable)) return "Máquina de autoservicio";
-  if (locationId === "ciudad-aeroportuaria") return "Manzana";
-  if (locationId === "calzada-mamuts") return "Predio";
-  return "Local";
+  const dummyRecord: LocalRecord = {
+    id: 0,
+    nomenclatura,
+    giroOperativo: giro,
+    areaComercial: "",
+    lado: "",
+    area: "",
+    modulo: "",
+    metraje: null,
+    metrajeOriginal: null,
+    nivel: "",
+    estatus: "",
+    situacion: null,
+    marca: null,
+    subdireccion: null,
+    gerencia: null,
+    giroIata: null,
+    giroIndaabin: null,
+    observaciones: null,
+    fechaFormalizacion: null,
+    fechaConclusion: null,
+    contractNumber: null,
+    contractPending: false,
+    commercialLine: null,
+    commercialSubline: null,
+    costPerM2: null,
+    monthlyRent: null,
+    participationRate: null,
+    participationNotes: null,
+    operationsStartDate: null,
+    signatureDate: null,
+    contractTerm: null,
+    renewalDate: null,
+    guaranteeStatus: null,
+    liabilityPolicyStatus: null,
+    projectStatus: null,
+    contractStatus: null,
+    operationalStatus: null,
+    contactData: null,
+    manager: null,
+  };
+  return getSpaceType(dummyRecord, locationId);
 }
 
-function parseRows(rows: SheetData, locationId: string, sheetName: string, contractStage: ContractStage | null = null) {
-  const isContractSheet = contractStage !== null;
+function parseRows(
+  rows: SheetData,
+  locationId: string,
+  sheetName: string,
+  contractStage: ContractStage | null = null,
+  defaultGerencia: string = ""
+) {
+  const isContractSheet = contractStage !== null || sheetName.toUpperCase().startsWith("CONTRATOS");
   const headerIndex = rows.slice(0, 15).findIndex((row) => {
     const titles = row.map(normalized);
     return isContractSheet
-      ? titles.some((title) => aliases[title] === "nomenclatura" || aliases[title] === "contractNumber" || aliases[title] === "marca")
+      ? titles.some((title) => aliases[title] === "nomenclatura" || aliases[title] === "contractNumber" || aliases[title] === "marca" || aliases[title] === "razonSocial")
       : titles.includes("nomenclatura") && titles.includes("estatus");
   });
   if (headerIndex < 0) throw new Error(`La hoja “${sheetName}” no contiene encabezados contractuales reconocibles.`);
@@ -482,21 +593,27 @@ function parseRows(rows: SheetData, locationId: string, sheetName: string, contr
   rows.slice(headerIndex + 1).forEach((row, rowIndex) => {
     const raw: ParsedRow = {};
     headers.forEach((field, columnIndex) => { if (field) raw[field] = row[columnIndex] ?? null; });
-    const contractIdentity = optionalText(raw.contractNumber ?? null);
-    const brandIdentity = optionalText(raw.marca ?? null);
-    if (isContractSheet && contractStage !== "agreements" && (!contractIdentity || /^\d{4}$/.test(contractIdentity))) return;
-    const nomenclatura = cellText(raw.nomenclatura ?? null) || contractIdentity || brandIdentity || "";
-    if (!nomenclatura || normalized(nomenclatura).startsWith("total")) return;
+    const rowHasAnyData = row.some((cell) => cell !== null && cellText(cell) !== "");
+    if (!rowHasAnyData) return;
+
+    const contractIdentity = optionalText(raw.contractNumber ?? null) || cellText(raw.contractNumber ?? null) || null;
+    const brandIdentity = optionalText(raw.marca ?? null) || optionalText(raw.razonSocial ?? null) || cellText(raw.marca ?? null) || cellText(raw.razonSocial ?? null) || null;
+    const rawNomenclatura = optionalText(raw.nomenclatura ?? null) || cellText(raw.nomenclatura ?? null) || null;
+
+    const nomenclatura = rawNomenclatura || contractIdentity || brandIdentity || `Renglon ${rowIndex + 1}`;
+    if (normalized(nomenclatura).startsWith("total")) return;
     const subdireccion = cellText(raw.subdireccion ?? null) || null;
     if (!isContractSheet && locationId === "etp" && !isCommercialServicesEtpRecord({ subdireccion })) return;
     const excelRow = headerIndex + rowIndex + 2;
     const defaults = structuralDefaults(locationId, raw);
-    const estatus = canonicalStatus(raw.estatus ?? null) || (contractStage === "cancelled" ? "CANCELADO" : contractStage === "expired" ? "FENECIDO" : contractStage === "agreements" ? "CONVENIO" : "");
-    if (!estatus) {
+    const estatus = canonicalStatus(raw.estatus ?? null) || canonicalStatus(raw.operationalStatus ?? null) || (contractStage === "cancelled" ? "CANCELADO" : contractStage === "expired" ? "FENECIDO" : contractStage === "agreements" ? "CONVENIO" : "FORMALIZADO");
+    if (!estatus && !isContractSheet) {
       errors.push(`${sheetName}, fila ${excelRow}: falta el estatus.`);
       return;
     }
-    const key = nomenclatura.toLocaleLowerCase("es-MX");
+    const key = isContractSheet
+      ? `${excelRow}-${nomenclatura}-${contractIdentity || ""}`.toLocaleLowerCase("es-MX")
+      : nomenclatura.toLocaleLowerCase("es-MX");
     if (seen.has(key)) {
       if (isContractSheet) return;
       errors.push(`${sheetName}, fila ${excelRow}: nomenclatura duplicada (${nomenclatura}).`);
@@ -505,7 +622,7 @@ function parseRows(rows: SheetData, locationId: string, sheetName: string, contr
     seen.add(key);
     const originalArea = raw.metraje ?? null;
     const giroIata = cellText(raw.giroIata ?? null) || null;
-    const giroOperativo = cellText(raw.giroOperativo ?? null) || giroIata;
+    const giroOperativo = cellText(raw.giroOperativo ?? null) || cellText(raw.commercialLine ?? null) || giroIata;
     const builtArea = parseArea(raw.metrajeConstruido ?? null);
     const builtAreaNote = builtArea === null
       ? ""
@@ -521,10 +638,46 @@ function parseRows(rows: SheetData, locationId: string, sheetName: string, contr
       fechaConclusion = null;
     }
     const participation = parseParticipation(raw.participationRate ?? null);
+    const participationVigente = parseParticipation(raw.participationRateVigente ?? null);
     const contractNumberRaw = contractIdentity;
     const contractNumber = contractNumberRaw && normalized(contractNumberRaw) !== "sin contrato"
       ? contractNumberRaw
       : null;
+
+    const razonSocial = optionalText(raw.razonSocial ?? null);
+    const marca = cellText(raw.marca ?? null) || razonSocial || null;
+    const gerencia = cellText(raw.gerencia ?? null) || defaultGerencia || null;
+    const zonaComercial = optionalText(raw.zonaComercial ?? null) || optionalText(raw.sourceZone ?? null);
+    let rowContractStage = contractStage;
+    if (!rowContractStage) {
+      const statusStr = normalized([raw.contractStatus, raw.situacion, raw.estatus, raw.operationalStatus].filter(Boolean).join(" "));
+      if (statusStr.includes("cancelad")) {
+        rowContractStage = "cancelled";
+      } else if (statusStr.includes("fenecid") || statusStr.includes("expirad")) {
+        rowContractStage = "expired";
+      } else if (statusStr.includes("convenio")) {
+        rowContractStage = "agreements";
+      } else if (
+        statusStr.includes("en formalizacion") ||
+        statusStr.includes("formalizacion") ||
+        statusStr.includes("tramite de formalizacion") ||
+        statusStr.includes("proceso de formalizacion") ||
+        statusStr.includes("en tramite")
+      ) {
+        rowContractStage = "formalization";
+      } else if (
+        statusStr.includes("preformal") ||
+        statusStr.includes("pre-formal") ||
+        statusStr.includes("pre formal") ||
+        statusStr.includes("proceso de asign") ||
+        statusStr.includes("en asign")
+      ) {
+        rowContractStage = "preformalization";
+      } else if (isContractSheet || Boolean(contractIdentity)) {
+        rowContractStage = "formalized";
+      }
+    }
+
     const record: LocalRecord = {
       id: records.length + 1,
       nomenclatura,
@@ -535,11 +688,12 @@ function parseRows(rows: SheetData, locationId: string, sheetName: string, contr
       metrajeOriginal: originalArea === null ? null : typeof originalArea === "number" ? originalArea : cellText(originalArea),
       areaComercial: cellText(raw.areaComercial ?? null) || inferSpaceType(locationId, nomenclatura, giroOperativo || cellText(raw.giroIndaabin ?? null)),
       nivel: cellText(raw.nivel ?? null) ? parseLevel(raw.nivel ?? null, "Sin nivel") : defaults.nivel,
-      estatus,
+      estatus: estatus || "FORMALIZADO",
       situacion: cellText(raw.situacion ?? null) || null,
-      marca: cellText(raw.marca ?? null) || null,
+      razonSocial,
+      marca,
       subdireccion,
-      gerencia: cellText(raw.gerencia ?? null) || null,
+      gerencia,
       giroIata,
       giroOperativo,
       giroIndaabin: cellText(raw.giroIndaabin ?? null) || null,
@@ -551,8 +705,11 @@ function parseRows(rows: SheetData, locationId: string, sheetName: string, contr
       commercialLine: optionalText(raw.commercialLine ?? null),
       commercialSubline: optionalText(raw.commercialSubline ?? null),
       costPerM2: parseArea(raw.costPerM2 ?? null),
+      costPerM2Vigente: parseArea(raw.costPerM2Vigente ?? null),
       monthlyRent: parseArea(raw.monthlyRent ?? null),
+      monthlyRentVigente: parseArea(raw.monthlyRentVigente ?? null),
       participationRate: typeof participation === "number" ? participation : participation.rate,
+      participationRateVigente: typeof participationVigente === "number" ? participationVigente : participationVigente.rate,
       participationNotes: typeof participation === "number" ? null : participation.notes,
       operationsStartDate: parseExcelDate(raw.operationsStartDate ?? null),
       signatureDate: parseExcelDate(raw.signatureDate ?? null),
@@ -561,17 +718,18 @@ function parseRows(rows: SheetData, locationId: string, sheetName: string, contr
       guaranteeStatus: optionalText(raw.guaranteeStatus ?? null),
       liabilityPolicyStatus: optionalText(raw.liabilityPolicyStatus ?? null),
       projectStatus: optionalText(raw.projectStatus ?? null),
-      contractStatus: optionalText(raw.contractStatus ?? null)
-        ?? (contractStage === "agreements" ? optionalText(raw.situacion ?? null) : null),
-        operationalStatus: optionalText(raw.operationalStatus ?? null),
+      contractStatus: optionalText(raw.contractStatus ?? raw.situacion ?? null),
+      operationalStatus: optionalText(raw.operationalStatus ?? null),
       contactData: optionalText(raw.contactData ?? null),
       manager: optionalText(raw.manager ?? null),
-      contractStage,
+      zonaComercial,
+      contractStage: rowContractStage,
       contractSourceSheet: sheetName,
       contractLocationName: isContractSheet
-        ? optionalText(raw.sourceZone ?? null) ?? "Zona no indicada"
+        ? zonaComercial ?? "Zona no indicada"
         : locationOptions.find((location) => location.id === locationId)?.name ?? sheetName,
       contractLocationId: isContractSheet ? null : locationId,
+      daysRemaining: parseArea(raw.daysRemaining ?? null),
     };
     records.push(record);
   });
@@ -599,8 +757,15 @@ async function parseWorkbook(file: File): Promise<ParsedWorkbook> {
     return { ...definition, locationName: location.name, ...result };
   });
   const contractSheets = availableContractDefinitions.map((definition) => {
-    const result = parseRows(sheetsByName.get(normalized(definition.sheetName))!, `contracts-${definition.stage}`, definition.sheetName, definition.stage);
-    return { locationId: `contracts-${definition.stage}`, locationName: definition.sheetName, sheetName: definition.sheetName, ...result };
+    const locId = `contracts-${normalized(definition.sheetName).replaceAll(" ", "-")}`;
+    const result = parseRows(
+      sheetsByName.get(normalized(definition.sheetName))!,
+      locId,
+      definition.sheetName,
+      definition.stage,
+      definition.defaultGerencia
+    );
+    return { locationId: locId, locationName: definition.sheetName, sheetName: definition.sheetName, ...result };
   });
   if ([...parsed, ...contractSheets].reduce((sum, location) => sum + location.records.length, 0) > 10000) {
     throw new Error("El libro supera el límite total de 10,000 registros.");

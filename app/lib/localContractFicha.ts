@@ -89,10 +89,21 @@ function formatDate(value: string | null) {
 function daysUntil(value: string | null) {
   if (!value) return null;
   const target = new Date(`${value}T00:00:00Z`);
-  if (Number.isNaN(target.getTime())) return null;
-  const today = new Date();
-  const utcToday = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
-  return Math.ceil((target.getTime() - utcToday) / 86_400_000);
+  if (!Number.isNaN(target.getTime())) {
+    const today = new Date();
+    const utcToday = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+    return Math.ceil((target.getTime() - utcToday) / 86_400_000);
+  }
+  const parts = String(value).trim().split(/[-/]/);
+  if (parts.length === 3 && parts[2].length === 4) {
+    const d = new Date(Date.UTC(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0])));
+    if (!Number.isNaN(d.getTime())) {
+      const today = new Date();
+      const utcToday = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+      return Math.ceil((d.getTime() - utcToday) / 86_400_000);
+    }
+  }
+  return null;
 }
 
 function daysLabel(value: number | null) {
@@ -211,9 +222,7 @@ function buildFichaDocument(record: LocalRecord, records: LocalRecord[], logoDat
   const location = locationNames.join(" · ");
   const contact = text(records.map((local) => local.contactData).find((value) => text(value, "") !== ""));
   const nomenclatures = records.map((local) => local.nomenclatura);
-  const nomenclatureSummary = nomenclatures.length <= 5
-    ? nomenclatures.join(", ")
-    : `${nomenclatures.slice(0, 5).join(", ")} y ${nomenclatures.length - 5} más`;
+  const nomenclatureSummary = nomenclatures.join(", ");
   const mainIdentifier = consolidated ? `${records.length} LOCALES` : text(record.nomenclatura);
   const documentTitle = consolidated ? "FICHA EJECUTIVA DE CONTRATO" : "FICHA EJECUTIVA LOCAL Y CONTRATO";
   const participation = record.participationNotes
@@ -225,12 +234,12 @@ function buildFichaDocument(record: LocalRecord, records: LocalRecord[], logoDat
     children: [
       cell(4_300, [new Paragraph({
         spacing: { after: 0 },
-        children: [new ImageRun({
+        children: logoData.length > 0 ? [new ImageRun({
           data: logoData,
           type: "png",
           transformation: { width: LOGO_WIDTH_PX, height: LOGO_HEIGHT_PX },
           altText: { title: "AIFA", description: "Aeropuerto Internacional Felipe Ángeles", name: "AIFA" },
-        })],
+        })] : [new TextRun({ text: "SIGCO · AIFA", font: "Arial", size: 14, bold: true, color: "6F1131" })],
       })], { fill: LIGHT, borders: noBorders, margins: { top: 115, bottom: 115, left: 120, right: 120 } }),
       cell(6_190, [
         line("DIRECCIÓN COMERCIAL Y DE SERVICIOS", { size: 14, bold: true, color: SLATE, align: AlignmentType.RIGHT }),
@@ -359,7 +368,7 @@ function buildFichaDocument(record: LocalRecord, records: LocalRecord[], logoDat
     children: [
       cell(7_600, [
         line("SIGCO · Sistema Integral de Gestión Comercial y Operativa", { size: 13, bold: true, color: SLATE }),
-        line(`Fuente: ${text(record.contractSourceSheet, "base de datos SIGCO")} · Corte: ${new Intl.DateTimeFormat("es-MX").format(now)}`, { size: 11, color: MUTED, before: 10 }),
+        line(`Fuente: ${text(record.contractSourceSheet, "Padrón Oficial SIGCO")} · Corte: ${new Intl.DateTimeFormat("es-MX").format(now)}`, { size: 11, color: MUTED, before: 10 }),
       ], { borders: noBorders, margins: { top: 60, bottom: 0, left: 0, right: 0 } }),
       cell(2_890, [
         line(consolidated ? "FICHA OFICIAL · CONTRATO" : "FICHA OFICIAL · LOCAL", { size: 13, bold: true, color: SLATE, align: AlignmentType.RIGHT }),

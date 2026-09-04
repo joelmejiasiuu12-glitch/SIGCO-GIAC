@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { AnalysisTarget, LocalRecord } from "@/app/types";
+import { getGiroCategory, getSpaceType, type AnalysisTarget, type LocalRecord } from "@/app/types";
 
 type FilterableField =
   | "estatus"
@@ -81,7 +81,8 @@ function cleanLabel(value: unknown) {
 function countBy(records: LocalRecord[], field: keyof LocalRecord): ChartDatum[] {
   const counts = new Map<string, number>();
   records.forEach((record) => {
-    const label = cleanLabel(record[field]);
+    const raw = field === "areaComercial" ? getSpaceType(record) : field === "giroOperativo" ? getGiroCategory(record) : record[field];
+    const label = cleanLabel(raw);
     counts.set(label, (counts.get(label) ?? 0) + 1);
   });
   return [...counts.entries()]
@@ -92,7 +93,8 @@ function countBy(records: LocalRecord[], field: keyof LocalRecord): ChartDatum[]
 function sumAreaBy(records: LocalRecord[], field: keyof LocalRecord): ChartDatum[] {
   const totals = new Map<string, number>();
   records.forEach((record) => {
-    const label = cleanLabel(record[field]);
+    const raw = field === "areaComercial" ? getSpaceType(record) : field === "giroOperativo" ? getGiroCategory(record) : record[field];
+    const label = cleanLabel(raw);
     totals.set(label, (totals.get(label) ?? 0) + (record.metraje ?? 0));
   });
   return [...totals.entries()]
@@ -105,7 +107,8 @@ function averageAreaBy(records: LocalRecord[], field: keyof LocalRecord): ChartD
   const groups = new Map<string, number[]>();
   records.forEach((record) => {
     if (record.metraje === null || record.metraje <= 0) return;
-    const label = cleanLabel(record[field]);
+    const raw = field === "areaComercial" ? getSpaceType(record) : field === "giroOperativo" ? getGiroCategory(record) : record[field];
+    const label = cleanLabel(raw);
     groups.set(label, [...(groups.get(label) ?? []), record.metraje]);
   });
   return [...groups.entries()]
@@ -270,9 +273,14 @@ function tenantMetrics(records: LocalRecord[], includeEtpAnalysis = false): Metr
     .sort((a, b) => b.area - a.area)
     .slice(0, 3);
   const topThreeArea = topThreeBrands.reduce((sum, brand) => sum + brand.area, 0);
+  const occupiedRecords = records.filter((record) =>
+    ["EN FUNCIONAMIENTO", "EN ADAPTACION", "FORMALIZADO"].includes(record.estatus) || validBrand(record.marca),
+  );
+  const occupiedArea = occupiedRecords.reduce((sum, record) => sum + (record.metraje ?? 0), 0);
   const totalArea = records.reduce((sum, record) => sum + (record.metraje ?? 0), 0);
   const multiLocationRatio = uniqueBrands.size ? branded.length / uniqueBrands.size : null;
-  const concentration = totalArea ? (topThreeArea / totalArea) * 100 : null;
+  const concentration = occupiedArea > 0 ? (topThreeArea / occupiedArea) * 100 : (totalArea ? (topThreeArea / totalArea) * 100 : null);
+  const totalShare = totalArea > 0 ? (topThreeArea / totalArea) * 100 : null;
   const operatingLocations = branded.filter((record) => record.estatus === "EN FUNCIONAMIENTO").length;
   const metrics: Metric[] = [
     {
@@ -301,12 +309,13 @@ function tenantMetrics(records: LocalRecord[], includeEtpAnalysis = false): Metr
       label: "Concentración Top 3",
       analysisTarget: "top3",
       value: concentration !== null ? `${numberFormat.format(concentration)}%` : "Sin dato",
-      note: "Participación del área total seleccionada",
+      note: "Participación de la superficie ocupada",
       analysis: includeEtpAnalysis
         ? concentration === null
           ? "No existe superficie suficiente para medir la concentración."
-          : `Las tres marcas con mayor superficie ocupan ${numberFormat.format(topThreeArea)} de ${numberFormat.format(totalArea)} m² (${numberFormat.format(concentration)}% del total). Permite vigilar el nivel de exposición institucional y mitigar el riesgo operativo ante la eventual salida o reubicación de los principales arrendatarios.`
+          : `Las tres marcas con mayor superficie ocupan ${numberFormat.format(topThreeArea)} de ${numberFormat.format(occupiedArea)} m² arrendados (${numberFormat.format(concentration)}% de la cartera ocupada${totalShare !== null ? ` y ${numberFormat.format(totalShare)}% del inventario total` : ""}). Permite vigilar el nivel de exposición institucional y mitigar el riesgo operativo ante la eventual rescisión o salida de los principales arrendatarios.`
         : undefined,
+
       links: includeEtpAnalysis
         ? topThreeBrands.map((brand) => {
           const locations = [...brand.locations];

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import type { ContractStage, LocalRecord } from "@/app/types";
+import { locationOptions, type ContractStage, type LocalRecord } from "@/app/types";
 
 const CONTRACT_PAGE_SIZE = 12;
 const RELATION_PAGE_SIZE = 18;
@@ -35,16 +35,21 @@ export type TenantScore = {
   details: string[];
 };
 
-type ContractAggregate = {
+export type ContractAggregate = {
   key: string;
   contractNumber: string | null;
   pending: boolean;
   locals: LocalRecord[];
   brand: string;
+  razonSocial: string | null;
   commercialLine: string | null;
   commercialSubline: string | null;
   monthlyRent: number | null;
+  monthlyRentVigente: number | null;
+  costPerM2: number | null;
+  costPerM2Vigente: number | null;
   participationRate: number | null;
+  participationRateVigente: number | null;
   participationNotes: string | null;
   operationsStartDate: string | null;
   signatureDate: string | null;
@@ -56,6 +61,8 @@ type ContractAggregate = {
   contractStatus: string;
   operationalStatus: string | null;
   manager: string;
+  gerencia: string;
+  zonaComercial: string | null;
   daysRemaining: number | null;
   attention: Attention;
   stage: ContractStage | null;
@@ -80,63 +87,123 @@ function firstText(records: LocalRecord[], key: keyof LocalRecord) {
 function daysUntil(date: string | null) {
   if (!date) return null;
   const target = new Date(`${date}T00:00:00Z`);
-  if (Number.isNaN(target.getTime())) return null;
-  const today = new Date();
-  const utcToday = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
-  return Math.ceil((target.getTime() - utcToday) / 86_400_000);
+  if (!Number.isNaN(target.getTime())) {
+    const today = new Date();
+    const utcToday = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+    return Math.ceil((target.getTime() - utcToday) / 86_400_000);
+  }
+  const parts = String(date).trim().split(/[-/]/);
+  if (parts.length === 3 && parts[2].length === 4) {
+    const d = new Date(Date.UTC(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0])));
+    if (!Number.isNaN(d.getTime())) {
+      const today = new Date();
+      const utcToday = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+      return Math.ceil((d.getTime() - utcToday) / 86_400_000);
+    }
+  }
+  return null;
 }
 
 function documentNeedsAttention(value: string | null) {
+  if (!value) return false;
   const key = normalized(value);
-  return !key || key.includes("falta") || key.includes("correccion") || key === "n/a";
+  if (!key) return false;
+
+  if (
+    key === "n/a" ||
+    key.includes("no aplica") ||
+    key.includes("no requerid") ||
+    key.includes("vigente") ||
+    key.includes("entregad") ||
+    key.includes("completo") ||
+    key.includes("concluid") ||
+    key.includes("aprobad") ||
+    key.includes("cumplid") ||
+    key.includes("en regla") ||
+    key.includes("cubiert") ||
+    key.includes("pagad") ||
+    key.includes("validad") ||
+    key === "ok" ||
+    key === "si" ||
+    key === "sí" ||
+    key === "cp" ||
+    key === "c.p." ||
+    key.includes("sin observacio")
+  ) {
+    return false;
+  }
+
+  return (
+    key.includes("falta") ||
+    key.includes("pendiente") ||
+    key.includes("correccion") ||
+    key.includes("vencid") ||
+    key.includes("incomplet") ||
+    key.includes("sin poliza") ||
+    key.includes("sin garantia") ||
+    key.includes("rechazad") ||
+    key.includes("no entregad") ||
+    key.includes("por actualizar") ||
+    key.includes("por entregar") ||
+    key.includes("observacion") ||
+    key.includes("irregular") ||
+    key.includes("baja")
+  );
 }
 
 function stageForRecord(record: LocalRecord): ContractStage | null {
-  if (record.contractStage) return record.contractStage;
-
-  const status = normalized(record.contractStatus);
-
-  if (!status) return null;
-
-  if (status.includes("convenio")) {
-    return "agreements";
+  if (record.contractStage) {
+    const s = normalized(record.contractStage);
+    if (s.includes("cancelad")) return "cancelled";
+    if (s.includes("fenecid") || s.includes("expirad")) return "expired";
+    if (s.includes("convenio")) return "agreements";
+    if (s.includes("preformal")) return "preformalization";
+    if (s.includes("formalizac") || s.includes("en formal")) return "formalization";
+    if (s.includes("formaliz")) return "formalized";
+    return record.contractStage as ContractStage;
   }
+
+  const sheetUpper = (record.contractSourceSheet ?? "").toUpperCase();
+  if (sheetUpper.includes("CANCELAD")) return "cancelled";
+  if (sheetUpper.includes("FENECID")) return "expired";
+  if (sheetUpper.includes("CONVENIO")) return "agreements";
+
+  const isGscOrGepSheet =
+    sheetUpper.includes("GSC") ||
+    sheetUpper.includes("GEP") ||
+    sheetUpper.includes("PUBLICITARIO") ||
+    sheetUpper.includes("SERVICIOS COMERCIALES");
+
+  const status = normalized([record.contractStatus, record.situacion, record.estatus, record.operationalStatus].filter(Boolean).join(" "));
+
+  if (!isGscOrGepSheet) {
+    if (status.includes("cancelad")) return "cancelled";
+    if (status.includes("fenecido") || status.includes("expirad")) return "expired";
+  }
+
+  if (status.includes("convenio")) return "agreements";
 
   if (
-    status.includes("cancel") ||
-    status.includes("rescind")
-  ) {
-    return "cancelled";
-  }
-
-  if (
-    status.includes("fenec") ||
-    status.includes("vencid") ||
-    status.includes("concluid") ||
-    status.includes("terminad")
-  ) {
-    return "expired";
-  }
-
-  if (status.includes("preformal")) {
-    return "preformalization";
-  }
-
-  if (
-    status.includes("formalizacion") &&
-    !status.includes("formalizado")
+    status.includes("en formalizacion") ||
+    status.includes("formalizacion") ||
+    status.includes("tramite de formalizacion") ||
+    status.includes("proceso de formalizacion") ||
+    status.includes("en tramite")
   ) {
     return "formalization";
   }
 
   if (
-    status.includes("formalizado") ||
-    status.includes("vigente")
+    status.includes("preformal") ||
+    status.includes("pre-formal") ||
+    status.includes("pre formal") ||
+    status.includes("proceso de asign") ||
+    status.includes("en asign")
   ) {
-    return "formalized";
+    return "preformalization";
   }
 
-  return null;
+  return "formalized";
 }
 
 function stageLabel(stage: ContractStage | null) {
@@ -185,9 +252,11 @@ export function calculateTenantScore(contract: Omit<ContractAggregate, "attentio
   }
 
   // 2. Renewal & Expiry (15 pts max)
-  if (contract.daysRemaining === null) {
-    renewal += 10;
-  } else if (contract.daysRemaining > 90) {
+  const isExpired = contract.stage === "expired" || normalized(contract.contractStatus).includes("fenecido") || normalized(contract.contractStatus).includes("vencido");
+  if (isExpired) {
+    renewal += 0;
+    details.push(contract.daysRemaining !== null && contract.daysRemaining < 0 ? `Contrato vencido hace ${Math.abs(contract.daysRemaining)} días` : "Contrato fenecido o vencido");
+  } else if (contract.daysRemaining === null || contract.daysRemaining > 90) {
     renewal += 15;
   } else if (contract.daysRemaining >= 30) {
     renewal += 8;
@@ -201,7 +270,7 @@ export function calculateTenantScore(contract: Omit<ContractAggregate, "attentio
   }
 
   // 3. Formalization Stage (20 pts max)
-  if (contract.stage === "formalized" || (contract.contractNumber && !contract.pending)) {
+  if (contract.stage === "formalized" || contract.stage === "agreements" || (contract.contractNumber && !contract.pending)) {
     formalized += 20;
   } else if (contract.stage === "formalization") {
     formalized += 10;
@@ -215,8 +284,30 @@ export function calculateTenantScore(contract: Omit<ContractAggregate, "attentio
   }
 
   // 4. Operational Status (35 pts max)
-  const isOperating = contract.locals.some((l) => l.estatus === "EN FUNCIONAMIENTO");
-  const isAdapting = contract.locals.some((l) => l.estatus === "EN ADAPTACION");
+  const operationalText = normalized([
+    contract.operationalStatus,
+    contract.contractStatus,
+    ...contract.locals.map((l) => `${l.estatus} ${l.operationalStatus ?? ""} ${l.situacion ?? ""}`)
+  ].filter(Boolean).join(" "));
+
+  const isOperating =
+    contract.locals.some((l) => {
+      const st = normalized(l.estatus);
+      return st === "en funcionamiento" || st === "formalizado" || st === "en operacion" || st === "operando" || st === "operativo" || st === "vigente";
+    }) ||
+    operationalText.includes("funcionamiento") ||
+    operationalText.includes("operacio") ||
+    operationalText.includes("operando") ||
+    operationalText.includes("operativo") ||
+    operationalText.includes("formalizado") ||
+    operationalText.includes("vigente") ||
+    ((contract.stage === "formalized" || contract.stage === "agreements") && !contract.locals.some((l) => normalized(l.estatus).includes("adaptacion") || normalized(l.estatus).includes("disponible")));
+
+  const isAdapting =
+    contract.locals.some((l) => normalized(l.estatus).includes("adaptacion")) ||
+    operationalText.includes("adaptacion") ||
+    operationalText.includes("remodelacion") ||
+    operationalText.includes("obra");
 
   if (isOperating) {
     operation += 35;
@@ -266,64 +357,161 @@ export function calculateTenantScore(contract: Omit<ContractAggregate, "attentio
   };
 }
 
-function buildContracts(records: LocalRecord[]): ContractAggregate[] {
+export function recordMatchesZone(record: LocalRecord, locationId: string): boolean {
+  if (locationId === "all") return true;
+  if (record.contractLocationId === locationId) return true;
+  const raw = record.zonaComercial ?? record.contractLocationName;
+  if (!raw) return false;
+  const norm = normalized(raw);
+  
+  if (locationId === "etp" && (norm.includes("etp") || norm.includes("terminal de pasajeros") || norm.includes("terminal pasajeros"))) return true;
+  if (locationId === "parque-santa-lucia" && (norm.includes("santa lucia") || norm === "psl")) return true;
+  if (locationId === "carga-aduana" && (norm.includes("aduana") || norm.includes("edificio de servicios") || norm === "carga")) return true;
+  if (locationId === "autobuses-plaza" && (norm.includes("autobuses") || norm.includes("transportacion terrestre") || norm.includes("intermodal") || norm.includes("plaza mexicana") || norm === "titt")) return true;
+  if (locationId === "parque-revolucion" && (norm.includes("revolucion") || norm.includes("glorieta felipe angeles"))) return true;
+  if (locationId === "ciudad-aeroportuaria" && norm.includes("ciudad aeroportuaria")) return true;
+  if (locationId === "calzada-mamuts" && norm.includes("mamut")) return true;
+
+  const locOpt = locationOptions.find((l) => l.id === locationId);
+  const locShort = normalized(locOpt?.shortName ?? locationId);
+  return norm.includes(locShort);
+}
+
+export function normalizeContractNumber(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const norm = normalized(trimmed);
+  if (
+    norm === "sin contrato" ||
+    norm === "n/a" ||
+    norm === "sin dato" ||
+    norm === "por definir" ||
+    norm === "null" ||
+    norm === "s/n" ||
+    norm === "sn" ||
+    norm.includes("tramite") ||
+    norm.includes("revision") ||
+    norm.includes("formalizacion") ||
+    norm.includes("proceso")
+  ) {
+    return null;
+  }
+  return trimmed;
+}
+
+export function buildContracts(records: LocalRecord[]): ContractAggregate[] {
   const groups = new Map<string, LocalRecord[]>();
+
   records.forEach((record) => {
     const stage = stageForRecord(record);
-    const hasContractSection = Boolean(
-      stage || record.contractNumber || record.contractPending || record.contractStatus || record.manager || record.monthlyRent !== null || record.renewalDate,
-    );
-    if (!hasContractSection) return;
-    const terminalStage = stage === "cancelled" || stage === "expired" || stage === "agreements" ? stage : "current";
-    const key = record.contractNumber
-      ? `contract:${terminalStage}:${record.contractNumber}`
-      : `pending:${record.contractSourceSheet ?? record.contractLocationName ?? "zone"}:${record.id}`;
-    groups.set(key, [...(groups.get(key) ?? []), record]);
+    if (!stage) return;
+
+    const contractNumberRaw = normalizeContractNumber(record.contractNumber);
+
+    let groupKey: string;
+    if (stage === "cancelled") {
+      const idKey = normalized(record.nomenclatura || String(record.id));
+      if (contractNumberRaw) {
+        groupKey = `cancelled:${normalized(contractNumberRaw)}:${idKey}`;
+      } else {
+        const brandKey = normalized(record.razonSocial || record.marca || "sin-marca");
+        groupKey = `cancelled:pending:${brandKey}:${idKey}`;
+      }
+    } else if (contractNumberRaw) {
+      groupKey = `contract:${normalized(contractNumberRaw)}`;
+    } else {
+      const brandKey = normalized(record.razonSocial || record.marca || "sin-marca");
+      const localKey = normalized(record.nomenclatura || record.id);
+      groupKey = `pending:${brandKey}:${localKey}`;
+    }
+
+    groups.set(groupKey, [...(groups.get(groupKey) ?? []), record]);
   });
 
-  return [...groups.entries()].map(([key, locals]) => {
-    const stage = locals.map(stageForRecord).find((value): value is ContractStage => Boolean(value)) ?? null;
+  const list: ContractAggregate[] = [];
+  groups.forEach((locals, groupKey) => {
+    const stage = locals.map(stageForRecord).find((value): value is ContractStage => Boolean(value)) ?? "formalized";
     const contractNumber = firstText(locals, "contractNumber");
-    const rents = locals.map((record) => record.monthlyRent).filter((value): value is number => value !== null);
+    const rentValues = locals.map((record) => record.monthlyRent).filter((value): value is number => value !== null);
+    const monthlyRent = rentValues.length ? rentValues.reduce((total, val) => total + val, 0) : null;
     const participation = locals.map((record) => record.participationRate).find((value) => value !== null) ?? null;
-    const renewalDate = firstText(locals, "renewalDate");
+    const numericDays = locals.map((record) => record.daysRemaining).find((value): value is number => typeof value === "number" && !Number.isNaN(value));
+    const renewalDate = firstText(locals, "renewalDate") ?? firstText(locals, "fechaConclusion") ?? firstText(locals, "contractTerm");
+    const contractStatus = firstText(locals, "contractStatus") ?? firstText(locals, "situacion") ?? stageLabel(stage);
+
+    const razonSocial = firstText(locals, "razonSocial");
+    const brand = firstText(locals, "marca") ?? razonSocial ?? "Sin marca asignada";
+    const sourceSheet = firstText(locals, "contractSourceSheet") ?? "";
+    let gerencia = firstText(locals, "gerencia");
+    const rawNum = contractNumber ? contractNumber.toUpperCase() : "";
+    const rawGer = gerencia ? gerencia.toUpperCase() : "";
+    if (sourceSheet.toUpperCase().includes("GEP") || sourceSheet.toUpperCase().includes("PUBLICITARIO") || rawNum.includes("GEP") || rawGer.includes("GEP") || rawGer.includes("PUBLICIT")) {
+      gerencia = "Gerencia de Espacios Publicitarios";
+    } else if (sourceSheet.toUpperCase().includes("GSC") || rawNum.includes("GSC") || !gerencia) {
+      gerencia = "Gerencia de Servicios Comerciales";
+    }
+    const zonaComercial = firstText(locals, "zonaComercial") ?? firstText(locals, "contractLocationName");
+
+    const costPerM2 = locals.map((record) => record.costPerM2).find((value) => value !== null) ?? null;
+    const costPerM2Vigente = locals.map((record) => record.costPerM2Vigente ?? record.costPerM2).find((value) => value !== null) ?? costPerM2;
+    const rentVigenteValues = locals.map((record) => record.monthlyRentVigente ?? record.monthlyRent).filter((value): value is number => value !== null);
+    const monthlyRentVigente = rentVigenteValues.length ? rentVigenteValues.reduce((total, val) => total + val, 0) : monthlyRent;
+    const participationRateVigente = locals.map((record) => record.participationRateVigente ?? record.participationRate).find((value) => value !== null) ?? participation;
+
     const base = {
-      key,
+      key: groupKey,
       contractNumber,
       pending: !contractNumber,
       locals,
-      brand: firstText(locals, "marca") ?? "Sin marca asignada",
+      brand,
+      razonSocial,
       commercialLine: firstText(locals, "commercialLine"),
       commercialSubline: firstText(locals, "commercialSubline"),
-      monthlyRent: rents.length ? rents.reduce((total, value) => total + value, 0) : null,
+      monthlyRent,
+      monthlyRentVigente,
+      costPerM2,
+      costPerM2Vigente,
       participationRate: participation,
+      participationRateVigente,
       participationNotes: firstText(locals, "participationNotes"),
       operationsStartDate: firstText(locals, "operationsStartDate"),
-      signatureDate: firstText(locals, "signatureDate"),
+      signatureDate: firstText(locals, "signatureDate") ?? firstText(locals, "fechaFormalizacion"),
       contractTerm: firstText(locals, "contractTerm"),
       renewalDate,
       guaranteeStatus: firstText(locals, "guaranteeStatus"),
       liabilityPolicyStatus: firstText(locals, "liabilityPolicyStatus"),
       projectStatus: firstText(locals, "projectStatus"),
-      contractStatus: firstText(locals, "contractStatus") ?? stageLabel(stage),
-      operationalStatus: firstText(locals, "operationalStatus"),
+      contractStatus,
+      operationalStatus: firstText(locals, "operationalStatus") ?? firstText(locals, "estatus") ?? null,
       manager: firstText(locals, "manager") ?? "Sin asignar",
-      daysRemaining: daysUntil(renewalDate),
+      gerencia,
+      zonaComercial,
+      daysRemaining: daysUntil(renewalDate) ?? numericDays ?? null,
       stage,
-      locationName: firstText(locals, "contractLocationName") ?? "Zona no indicada",
+      locationName: zonaComercial ?? firstText(locals, "contractLocationName") ?? "Zona no indicada",
       sourceSheet: firstText(locals, "contractSourceSheet"),
       locationId: firstText(locals, "contractLocationId"),
     };
+
     const attention = attentionFor(base);
     const score = calculateTenantScore(base);
-    return { ...base, attention, score };
-  }).sort((a, b) => {
+
+    if ((stage === "expired" || stage === "cancelled") && !contractNumber && (brand === "Sin marca asignada" || brand === "Sin marca" || !brand)) {
+      return;
+    }
+
+    list.push({ ...base, attention, score });
+  });
+
+  return list.sort((a, b) => {
     if (a.pending !== b.pending) return a.pending ? 1 : -1;
     const aDays = a.daysRemaining ?? Number.POSITIVE_INFINITY;
     const bDays = b.daysRemaining ?? Number.POSITIVE_INFINITY;
     return aDays - bDays || (a.contractNumber ?? a.brand).localeCompare(b.contractNumber ?? b.brand, "es", { numeric: true });
   });
 }
+
 
 function formatDate(value: string | null) {
   if (!value) return "Sin dato";
@@ -395,19 +583,153 @@ function DocumentFact({ label, value }: { label: string; value: string | null })
   );
 }
 
+function ContractExecutiveDonut({
+  title,
+  kicker,
+  data,
+  colors = ["#00886f", "#39a9db", "#b56d16", "#ac182c", "#8a633f"],
+  center = "contratos",
+}: {
+  title: string;
+  kicker: string;
+  data: [string, number][];
+  colors?: string[];
+  center?: string;
+}) {
+  const total = data.reduce((sum, [, value]) => sum + value, 0);
+  const circumference = 2 * Math.PI * 44;
+
+  return (
+    <article className="executive-card">
+      <div className="executive-heading">
+        <div>
+          <span className="section-kicker">{kicker}</span>
+          <h2>{title}</h2>
+        </div>
+      </div>
+      <div className="executive-donut-layout">
+        <div className="executive-donut" role="img" aria-label={title}>
+          <svg viewBox="0 0 100 100" aria-hidden="true">
+            {data.map(([label, value], index) => {
+              const share = total ? value / total : 0;
+              const offset = total
+                ? data.slice(0, index).reduce((sum, [, prev]) => sum + prev, 0) / total
+                : 0;
+              return (
+                <circle
+                  key={label}
+                  cx="50"
+                  cy="50"
+                  r="44"
+                  fill="none"
+                  stroke={colors[index % colors.length]}
+                  strokeWidth="12"
+                  strokeDasharray={`${share * circumference} ${circumference}`}
+                  strokeDashoffset={-offset * circumference}
+                  transform="rotate(-90 50 50)"
+                  className="donut-segment"
+                >
+                  <title>{`${label}: ${numberFormat.format(value)} (${total ? numberFormat.format(share * 100) : 0}%)`}</title>
+                </circle>
+              );
+            })}
+          </svg>
+          <div>
+            <strong>{numberFormat.format(total)}</strong>
+            <span>{center}</span>
+          </div>
+        </div>
+        <div className="executive-legend">
+          {data.map(([label, value], index) => (
+            <div key={label}>
+              <i style={{ background: colors[index % colors.length] }} />
+              <span title={label}>{label}</span>
+              <strong>
+                <b>{numberFormat.format(value)}</b>
+                <small>{total ? numberFormat.format((value / total) * 100) : 0}%</small>
+              </strong>
+            </div>
+          ))}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function ContractExecutiveBars({
+  title,
+  kicker,
+  data,
+  color = "#00886f",
+  isCurrency = false,
+}: {
+  title: string;
+  kicker: string;
+  data: [string, number][];
+  color?: string;
+  isCurrency?: boolean;
+}) {
+  const max = Math.max(...data.map(([, val]) => val), 1);
+  const total = data.reduce((sum, [, val]) => sum + val, 0);
+
+  return (
+    <article className="executive-card summary-horizontal-card">
+      <div className="executive-heading">
+        <div>
+          <span className="section-kicker">{kicker}</span>
+          <h2>{title}</h2>
+        </div>
+      </div>
+      <div className="summary-horizontal-bars">
+        {data.map(([label, value]) => {
+          const percentage = total ? (value / total) * 100 : 0;
+          return (
+            <div className="summary-horizontal-row" key={label}>
+              <span>
+                <b title={label}>{label}</b>
+                <strong>
+                  {isCurrency ? currencyFormat.format(value) : numberFormat.format(value)}
+                  {!isCurrency && total > 0 ? ` · ${numberFormat.format(percentage)}%` : ""}
+                </strong>
+              </span>
+              <i aria-label={`${label}: ${value}`}>
+                <em style={{ width: `${Math.max((value / max) * 100, 3)}%`, background: color }} />
+              </i>
+            </div>
+          );
+        })}
+      </div>
+    </article>
+  );
+}
+
 export default function ContractCenter({
   records,
   locationName,
+  selectedLocationId,
+  onSelectLocationId,
   mode = "summary",
   onOpenLocal,
+  onAddContract,
+  onEditContract,
+  onDeleteContract,
+  initialSearch,
+  initialGerencia,
 }: {
   records: LocalRecord[];
   locationName: string;
+  selectedLocationId?: string;
+  onSelectLocationId?: (locationId: string) => void;
   mode?: ContractViewMode;
   onOpenLocal?: (nomenclature: string, locationId: string | null) => void;
+  onAddContract?: () => void;
+  onEditContract?: (contract: ContractAggregate) => void;
+  onDeleteContract?: (contract: ContractAggregate) => void;
+  initialSearch?: string;
+  initialGerencia?: string;
 }) {
-  const contracts = useMemo(() => buildContracts(records), [records]);
-  const [query, setQuery] = useState("");
+  const [selectedGerencia, setSelectedGerencia] = useState<string>(initialGerencia || "all");
+  const [query, setQuery] = useState(initialSearch || "");
   const [status, setStatus] = useState("");
   const [manager, setManager] = useState("");
   const [attention, setAttention] = useState("");
@@ -415,13 +737,76 @@ export default function ContractCenter({
   const [page, setPage] = useState(1);
   const [expanded, setExpanded] = useState<string | null>(null);
 
+  // Sincronizar gerencia y búsqueda si se envían desde afuera (ej. al abrir desde Publicidad)
+  useEffect(() => {
+    if (initialGerencia) {
+      setSelectedGerencia(initialGerencia);
+    }
+  }, [initialGerencia]);
+
+  useEffect(() => {
+    if (initialSearch !== undefined && initialSearch !== "") {
+      setQuery(initialSearch);
+      setSelectedStage("all");
+      setPage(1);
+      setTimeout(() => {
+        const el = document.querySelector(".contract-toolbar");
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 150);
+    }
+  }, [initialSearch]);
+
+  const gerenciaFilteredRecords = useMemo(() => {
+    if (selectedGerencia === "all") return records;
+    if (selectedGerencia === "gsc") {
+      return records.filter((r) => {
+        const sheet = normalized(r.contractSourceSheet ?? "");
+        const ger = normalized(r.gerencia ?? "");
+        const num = normalized(r.contractNumber ?? "");
+        if (sheet.includes("gep") || ger.includes("espacios publicitarios") || ger === "gep" || num.includes("gep")) return false;
+        return true;
+      });
+    }
+    if (selectedGerencia === "gep") {
+      return records.filter((r) => {
+        const sheet = normalized(r.contractSourceSheet ?? "");
+        const ger = normalized(r.gerencia ?? "");
+        const num = normalized(r.contractNumber ?? "");
+        return sheet.includes("gep") || ger.includes("gep") || ger.includes("espacios publicitarios") || num.includes("gep");
+      });
+    }
+    return records;
+  }, [records, selectedGerencia]);
+
+  const contracts = useMemo(() => buildContracts(gerenciaFilteredRecords), [gerenciaFilteredRecords]);
+  const gerenciaFilteredContracts = contracts;
+
+  // Auto-expandir contrato si coincide con la búsqueda inicial
+  useEffect(() => {
+    if (initialSearch && contracts.length > 0) {
+      const term = normalized(initialSearch.trim());
+      const match = contracts.find((c) =>
+        normalized(c.contractNumber || "").includes(term)
+      );
+      if (match) {
+        setExpanded(match.key);
+      }
+    }
+  }, [initialSearch, contracts]);
+
+  const activeContracts = useMemo(() => {
+    return gerenciaFilteredContracts.filter(
+      (c) => c.stage === "formalized" || c.stage === "preformalization" || c.stage === "formalization"
+    );
+  }, [gerenciaFilteredContracts]);
+
   const modeContracts = useMemo(() => {
-    if (mode !== "summary") return contracts.filter((c) => c.stage === mode);
-    if (selectedStage === "all") return contracts;
-    if (selectedStage === "pending_docs") return contracts.filter((c) => c.attention !== "En orden");
-    if (selectedStage === "renewing_soon") return contracts.filter((c) => c.daysRemaining !== null && c.daysRemaining <= 90);
-    return contracts.filter((c) => c.stage === selectedStage);
-  }, [contracts, mode, selectedStage]);
+    if (mode !== "summary") return gerenciaFilteredContracts.filter((c) => c.stage === mode);
+    if (selectedStage === "all") return gerenciaFilteredContracts;
+    if (selectedStage === "pending_docs") return activeContracts.filter((c) => c.attention !== "En orden");
+    if (selectedStage === "renewing_soon") return activeContracts.filter((c) => c.daysRemaining !== null && c.daysRemaining <= 90);
+    return gerenciaFilteredContracts.filter((c) => c.stage === selectedStage);
+  }, [activeContracts, gerenciaFilteredContracts, mode, selectedStage]);
 
   const statuses = useMemo(() => [...new Set(modeContracts.map((c) => c.contractStatus))].sort(), [modeContracts]);
   const managers = useMemo(() => [...new Set(modeContracts.map((c) => c.manager))].sort(), [modeContracts]);
@@ -429,7 +814,7 @@ export default function ContractCenter({
   const filtered = useMemo(() => {
     const term = normalized(query.trim());
     return modeContracts.filter((contract) => {
-      const haystack = [contract.contractNumber, contract.brand, contract.manager, contract.commercialLine, ...contract.locals.map((l) => l.nomenclatura)].join(" ");
+      const haystack = [contract.contractNumber, contract.brand, contract.razonSocial, contract.manager, contract.commercialLine, ...contract.locals.map((l) => l.nomenclatura)].join(" ");
       return (
         (!term || normalized(haystack).includes(term)) &&
         (!status || contract.contractStatus === status) &&
@@ -443,30 +828,31 @@ export default function ContractCenter({
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const pageRows = filtered.slice((page - 1) * pageSize, page * pageSize);
 
-  const preformalization = contracts.filter((c) => c.stage === "preformalization").length;
-  const formalization = contracts.filter((c) => c.stage === "formalization").length;
-  const formalized = contracts.filter((c) => c.stage === "formalized").length;
-  const closed = contracts.filter((c) => c.stage === "cancelled" || c.stage === "expired").length;
-  const expired = contracts.filter((c) => c.stage === "expired").length;
-  const cancelled = contracts.filter((c) => c.stage === "cancelled").length;
-  const agreements = contracts.filter((c) => c.stage === "agreements").length;
-  const totalRentGuaranteed = contracts.reduce((sum, c) => sum + (c.monthlyRent ?? 0), 0);
+  const preformalization = activeContracts.filter((c) => c.stage === "preformalization").length;
+  const formalization = activeContracts.filter((c) => c.stage === "formalization").length;
+  const formalized = activeContracts.filter((c) => c.stage === "formalized").length;
+  const closed = gerenciaFilteredContracts.filter((c) => c.stage === "cancelled" || c.stage === "expired").length;
+  const expired = gerenciaFilteredContracts.filter((c) => c.stage === "expired").length;
+  const cancelled = gerenciaFilteredContracts.filter((c) => c.stage === "cancelled").length;
+  const agreements = activeContracts.filter((c) => c.stage === "agreements").length;
+  const totalRentGuaranteed = activeContracts.reduce((sum, c) => sum + (c.monthlyRent ?? 0), 0);
+  const totalRentVigente = activeContracts.reduce((sum, c) => sum + (c.monthlyRentVigente ?? c.monthlyRent ?? 0), 0);
 
-  const totalScore = contracts.reduce((sum, c) => sum + c.score.score, 0);
-  const averageScore = contracts.length ? Math.round(totalScore / contracts.length) : 0;
-  const docHealth = contracts.length
-    ? (contracts.filter((c) => c.score.breakdown.documents === 30).length / contracts.length) * 100
+  const totalScore = activeContracts.reduce((sum, c) => sum + c.score.score, 0);
+  const averageScore = activeContracts.length ? Math.round(totalScore / activeContracts.length) : 0;
+  const docHealth = activeContracts.length
+    ? (activeContracts.filter((c) => c.score.breakdown.documents === 30).length / activeContracts.length) * 100
     : 0;
 
-  const renewalsDueCount = contracts.filter((c) => c.daysRemaining !== null && c.daysRemaining <= 90).length;
+  const renewalsDueCount = activeContracts.filter((c) => c.daysRemaining !== null && c.daysRemaining <= 90).length;
 
   const ratingCounts = useMemo(() => {
-    const counts = { "A+": 0, A: 0, B: 0, C: 0, D: 0 };
-    contracts.forEach((c) => {
-      counts[c.score.rating] += 1;
+    const counts: Record<string, number> = { "A+": 0, A: 0, B: 0, C: 0, D: 0 };
+    activeContracts.forEach((c) => {
+      counts[c.score.rating] = (counts[c.score.rating] ?? 0) + 1;
     });
     return counts;
-  }, [contracts]);
+  }, [activeContracts]);
 
   const resetPage = () => {
     setPage(1);
@@ -476,17 +862,19 @@ export default function ContractCenter({
   useEffect(() => {
     setPage(1);
     setExpanded(null);
-    setQuery("");
+    if (!initialSearch) {
+      setQuery("");
+    }
     setStatus("");
     setManager("");
     setAttention("");
-  }, [mode]);
+  }, [mode, selectedGerencia, initialSearch]);
 
   const headings: Record<ContractViewMode, { kicker: string; title: string; description: string }> = {
     summary: {
-      kicker: "Control contractual",
+      kicker: "Control contractual por gerencia",
       title: "Resumen de contratos",
-      description: "Cartera completa: vigentes, en preformalización, en formalización, formalizados, cancelados, fenecidos y convenios.",
+      description: "Cartera dividida por Gerencia (GSC y GEP): contratada, vigente, formalizados, cancelados y convenios.",
     },
     preformalization: {
       kicker: "Integración inicial",
@@ -522,7 +910,21 @@ export default function ContractCenter({
 
   const heading = headings[mode];
 
-  if (!contracts.length) return <ContractEmptyState locationName={locationName} />;
+  if (!contracts.length) {
+    return (
+      <ContractEmptyState
+        locationName={locationName}
+        selectedLocationId={selectedLocationId}
+        onSelectLocationId={onSelectLocationId}
+        onResetFilters={() => {
+          setSelectedGerencia("all");
+          setQuery("");
+          setSelectedStage("all");
+          if (onSelectLocationId) onSelectLocationId("all");
+        }}
+      />
+    );
+  }
 
   return (
     <section className="contract-center" aria-label={`Contratos de ${locationName}`}>
@@ -533,7 +935,40 @@ export default function ContractCenter({
           <p>{heading.description}</p>
         </div>
         <div className="heading-actions">
-          <span className="contract-zone-pill">{locationName}</span>
+          <label className="contract-zone-picker">
+            <span>Gerencia</span>
+            <select
+              value={selectedGerencia}
+              onChange={(e) => {
+                setSelectedGerencia(e.target.value);
+                resetPage();
+              }}
+              aria-label="Filtrar por Gerencia"
+            >
+              <option value="all">Todas las Gerencias (Consolidado)</option>
+              <option value="gsc">Gerencia de Servicios Comerciales (GSC)</option>
+              <option value="gep">Gerencia de Espacios Publicitarios (GEP)</option>
+            </select>
+          </label>
+          {onSelectLocationId ? (
+            <label className="contract-zone-picker">
+              <span>Zona comercial</span>
+              <select
+                value={selectedLocationId ?? "all"}
+                onChange={(event) => onSelectLocationId(event.target.value)}
+                aria-label="Filtrar contratos por zona comercial"
+              >
+                <option value="all">Todas las zonas comerciales</option>
+                {locationOptions.map((location) => (
+                  <option key={location.id} value={location.id}>
+                    {location.shortName}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <span className="contract-zone-pill">{locationName}</span>
+          )}
         </div>
       </div>
 
@@ -566,6 +1001,66 @@ export default function ContractCenter({
         </div>
       )}
 
+      {mode === "summary" && (
+        <div className="executive-grid contract-executive-charts" style={{ marginTop: "20px", marginBottom: "24px" }}>
+          <ContractExecutiveDonut
+            title="Estatus de los contratos"
+            kicker="Cartera Comercial Activa"
+            data={([
+              ["Formalizados", formalized],
+              ["En formalización", formalization],
+              ["Preformalización", preformalization],
+            ] as [string, number][]).filter(([, count]) => count > 0)}
+            colors={["#00886f", "#39a9db", "#b56d16"]}
+          />
+          <ContractExecutiveDonut
+            title="Salud Comercial (Score Marcas)"
+            kicker="Evaluación de arrendatarios"
+            data={[
+              ["Excelente A+ (90-100)", ratingCounts["A+"]],
+              ["Bueno A (80-89)", ratingCounts["A"]],
+              ["Aceptable B (70-79)", ratingCounts["B"]],
+              ["Atención C (60-69)", ratingCounts["C"]],
+              ["Riesgo D (<60)", ratingCounts["D"]],
+            ]}
+            colors={["#00886f", "#0b957e", "#39a9db", "#b56d16", "#ac182c"]}
+          />
+          <ContractExecutiveBars
+            title="Vencimientos por Horizonte"
+            kicker="Calendario de renovación"
+            data={[
+              ["Vencidos (< 0 días)", activeContracts.filter((c) => c.daysRemaining !== null && c.daysRemaining < 0).length],
+              ["Próximos (1 - 90 días)", activeContracts.filter((c) => c.daysRemaining !== null && c.daysRemaining >= 1 && c.daysRemaining <= 90).length],
+              ["Mediano Plazo (91 - 365 días)", activeContracts.filter((c) => c.daysRemaining !== null && c.daysRemaining > 90 && c.daysRemaining <= 365).length],
+              ["Largo Plazo (> 365 días)", activeContracts.filter((c) => c.daysRemaining !== null && c.daysRemaining > 365).length],
+            ]}
+            color="#405364"
+          />
+        </div>
+      )}
+
+      {/* Action Header bar below Vencimientos por Horizonte */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "20px 0 12px 0", flexWrap: "wrap", gap: "12px" }}>
+        <div>
+          <span style={{ fontSize: "15px", fontWeight: 800, color: "var(--navy)", fontFamily: '"Montserrat AIFA", Montserrat, sans-serif' }}>
+            Directorio de Instrumentos Contractuales
+          </span>
+          <div style={{ fontSize: "11px", color: "#6b7280", marginTop: "2px" }}>
+            Expedientes jurídicos, garantías y condiciones financieras ({gerenciaFilteredContracts.length} registros)
+          </div>
+        </div>
+        {onAddContract && (
+          <button
+            type="button"
+            className="btn-add-contract-section"
+            onClick={onAddContract}
+            title="Registrar nuevo contrato comercial"
+          >
+            ➕ Registrar Nuevo Contrato
+          </button>
+        )}
+      </div>
+
       {/* Compact Stage Filter Pills */}
       {mode === "summary" && (
         <div className="contract-compact-tabs" aria-label="Filtro por etapas de contrato">
@@ -591,6 +1086,16 @@ export default function ContractCenter({
           </button>
           <button
             type="button"
+            className={selectedStage === "formalization" ? "active" : ""}
+            onClick={() => {
+              setSelectedStage("formalization");
+              resetPage();
+            }}
+          >
+            En formalización <b>({formalization})</b>
+          </button>
+          <button
+            type="button"
             className={selectedStage === "preformalization" ? "active" : ""}
             onClick={() => {
               setSelectedStage("preformalization");
@@ -598,16 +1103,6 @@ export default function ContractCenter({
             }}
           >
             Preformalización <b>({preformalization})</b>
-          </button>
-          <button
-            type="button"
-            className={selectedStage === "formalization" ? "active" : ""}
-            onClick={() => {
-              setSelectedStage("formalization");
-              resetPage();
-            }}
-          >
-            Formalización <b>({formalization})</b>
           </button>
           <button
             type="button"
@@ -752,6 +1247,8 @@ export default function ContractCenter({
                   expanded={expanded === contract.key}
                   onToggle={() => setExpanded(expanded === contract.key ? null : contract.key)}
                   onOpenLocal={onOpenLocal}
+                  onEdit={onEditContract}
+                  onDelete={onDeleteContract}
                 />
               ))}
             </tbody>
@@ -788,19 +1285,50 @@ const ratingColors: Record<string, string> = {
 
 export function TenantScorecardWrapper({
   records,
+  locationName,
+  selectedLocationId,
+  onSelectLocationId,
   onOpenLocal,
 }: {
   records: LocalRecord[];
+  locationName?: string;
+  selectedLocationId?: string;
+  onSelectLocationId?: (locationId: string) => void;
   onOpenLocal?: (nomenclature: string, locationId: string | null) => void;
 }) {
-  const allContracts = useMemo(() => buildContracts(records), [records]);
-  const contracts = useMemo(() => {
-    return allContracts.filter((c) => {
-      if (!c.contractNumber) return false;
-      const num = normalized(c.contractNumber);
-      return !num.includes("sin contrato") && !num.includes("sin_contrato") && num !== "sin";
+  const [selectedGerencia, setSelectedGerencia] = useState<string>("gsc");
+
+  const gerenciaFilteredRecords = useMemo(() => {
+    const gscSheetRecords = records.filter((r) => {
+      const sheet = normalized(r.contractSourceSheet ?? "");
+      const ger = normalized(r.gerencia ?? "");
+      return sheet.includes("gsc") || ger.includes("gsc") || ger.includes("servicios comerciales") || (!sheet && !ger);
     });
-  }, [allContracts]);
+
+    const gepSheetRecords = records.filter((r) => {
+      const sheet = normalized(r.contractSourceSheet ?? "");
+      const ger = normalized(r.gerencia ?? "");
+      return sheet.includes("gep") || ger.includes("gep") || ger.includes("espacios publicitarios");
+    });
+
+    if (selectedGerencia === "gsc") {
+      return gscSheetRecords;
+    }
+
+    if (selectedGerencia === "gep") {
+      return gepSheetRecords;
+    }
+
+    return [...gscSheetRecords, ...gepSheetRecords];
+  }, [records, selectedGerencia]);
+
+  const contracts = useMemo(() => {
+    const all = buildContracts(gerenciaFilteredRecords);
+    return all.filter(
+      (c) => c.stage === "formalized" || c.stage === "preformalization" || c.stage === "formalization"
+    );
+  }, [gerenciaFilteredRecords]);
+
   const totalScore = contracts.reduce((sum, c) => sum + c.score.score, 0);
   const averageScore = contracts.length ? Math.round(totalScore / contracts.length) : 0;
   const docHealth = contracts.length
@@ -816,30 +1344,102 @@ export function TenantScorecardWrapper({
   }, [contracts]);
 
   return (
-    <TenantScorecardDashboard
-      contracts={contracts}
-      ratingCounts={ratingCounts}
-      averageScore={averageScore}
-      docHealth={docHealth}
-      onOpenLocal={onOpenLocal}
-    />
+    <div>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "16px" }}>
+        <label className="contract-zone-picker">
+          <span>Gerencia</span>
+          <select
+            value={selectedGerencia}
+            onChange={(e) => setSelectedGerencia(e.target.value)}
+            aria-label="Filtrar análisis por Gerencia"
+          >
+            <option value="all">Todas las Gerencias (Consolidado)</option>
+            <option value="gsc">Gerencia de Servicios Comerciales (GSC)</option>
+            <option value="gep">Gerencia de Espacios Publicitarios (GEP)</option>
+          </select>
+        </label>
+      </div>
+      <TenantScorecardDashboard
+        contracts={contracts}
+        ratingCounts={ratingCounts}
+        averageScore={averageScore}
+        docHealth={docHealth}
+        locationName={locationName}
+        selectedLocationId={selectedLocationId}
+        onSelectLocationId={onSelectLocationId}
+        onOpenLocal={onOpenLocal}
+      />
+    </div>
   );
 }
 
-function TenantScorecardDashboard({
+const RATING_CRITERIA_DESCRIPTIONS: Record<
+  string,
+  { label: string; range: string; summary: string; description: string; badgeTone: string }
+> = {
+  "A+": {
+    label: "Excelente (Puntaje 90 – 100)",
+    range: "90 – 100 pts",
+    summary: "Excelencia operativa, contractual y documental 100% integrada.",
+    description:
+      "Arrendatarios con salud comercial óptima: contrato formalizado y vigente, expediente 100% completo (garantía, póliza de R.C. y proyecto aprobados) y sin alertas de mora o vencimiento en los próximos 90 días.",
+    badgeTone: "tone-ok",
+  },
+  A: {
+    label: "Sólido (Puntaje 75 – 89)",
+    range: "75 – 89 pts",
+    summary: "Operación regular sólida con cumplimiento documental alto.",
+    description:
+      "Arrendatarios en funcionamiento con alto nivel de cumplimiento documental y buen estatus legal. Presentan trámite administrativo menor o vigencia contractual holgada.",
+    badgeTone: "tone-ok",
+  },
+  B: {
+    label: "Aceptable (Puntaje 60 – 74)",
+    range: "60 – 74 pts",
+    summary: "Operación estándar con trámites preventivos o renovación intermedia.",
+    description:
+      "Arrendatarios en operación regular que requieren seguimiento de rutina en alguna renovación cercana (30–90 días) o actualización de póliza de seguro.",
+    badgeTone: "tone-info",
+  },
+  C: {
+    label: "Atención Requerida (Puntaje 40 – 59)",
+    range: "40 – 59 pts",
+    summary: "Falta de expediente o contrato por vencer en ≤ 30 días.",
+    description:
+      "Arrendatarios que requieren atención comercial inmediata debido a vencimiento próximo (≤ 30 días), preformalización pendiente o falta de entregables obligatorios.",
+    badgeTone: "tone-watch",
+  },
+  D: {
+    label: "Riesgo Contractual (Puntaje < 40)",
+    range: "< 40 pts",
+    summary: "Contrato vencido o incumplimiento de garantías y documentos clave.",
+    description:
+      "Cuentas clasificadas en rango crítico: contratos vencidos sin convenio de renovación, ausencia de garantía de cumplimiento o falta de póliza de responsabilidad civil vigente.",
+    badgeTone: "tone-risk",
+  },
+};
+
+export function TenantScorecardDashboard({
   contracts,
   ratingCounts,
   averageScore,
   docHealth,
+  locationName,
+  selectedLocationId,
+  onSelectLocationId,
   onOpenLocal,
 }: {
   contracts: ContractAggregate[];
   ratingCounts: Record<string, number>;
   averageScore: number;
   docHealth: number;
+  locationName?: string;
+  selectedLocationId?: string;
+  onSelectLocationId?: (locationId: string) => void;
   onOpenLocal?: (nomenclature: string, locationId: string | null) => void;
 }) {
   const [hoveredRating, setHoveredRating] = useState<string | null>(null);
+  const [selectedRating, setSelectedRating] = useState<string | null>(null);
   const [showCriteriaModal, setShowCriteriaModal] = useState(false);
 
   const totalContracts = contracts.length;
@@ -891,8 +1491,8 @@ function TenantScorecardDashboard({
     <section className="tenant-scorecard-section" aria-label="Scorecard de Arrendatarios">
       <header className="scorecard-header">
         <div>
-          <span className="section-kicker">Dashboard de Scoring</span>
-          <h3>Calificación y Cumplimiento por Marca</h3>
+          <span className="section-kicker">Dashboard de Scoring · {locationName ?? "Zona seleccionada"}</span>
+          <h3>Calificación y Cumplimiento por Marca ({totalContracts} contratos)</h3>
         </div>
         <div className="scorecard-header-actions">
           <div className="rating-summary-pills">
@@ -1003,28 +1603,39 @@ function TenantScorecardDashboard({
               </svg>
               <div className="rating-donut-center">
                 <strong>{totalContracts}</strong>
-                <span>marcas</span>
+                <span>contratos</span>
               </div>
             </div>
-            <div className="rating-donut-legend">
+            <div className="rating-donut-legend interactive-legend">
               {donutData.map(([rating, count, color]) => {
                 const pct = totalContracts ? numberFormat.format(((count as number) / totalContracts) * 100) : "0";
                 const rent = rentByRating[rating] ?? 0;
                 const isHovered = hoveredRating === rating;
+                const isSelected = selectedRating === rating;
+                const descInfo = RATING_CRITERIA_DESCRIPTIONS[rating];
                 return (
                   <button
                     key={rating}
                     type="button"
-                    className={`rating-legend-item ${isHovered ? "hovered" : ""}`}
+                    className={`rating-legend-item ${isHovered ? "hovered" : ""} ${isSelected ? "active" : ""}`}
                     onMouseEnter={() => setHoveredRating(rating)}
                     onMouseLeave={() => setHoveredRating(null)}
+                    onClick={() => setSelectedRating(isSelected ? null : rating)}
+                    aria-pressed={isSelected}
+                    aria-label={`Ver criterio y registros de Rating ${rating}`}
                   >
                     <i style={{ background: color as string }} />
-                    <div>
-                      <strong>{rating}</strong>
-                      <span>{count} ({pct}%)</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
+                        <strong style={{ fontSize: "13px", fontWeight: 700, color: "var(--navy)" }}>
+                          Rating {rating} <small style={{ fontWeight: 600, color: "#68777f" }}>({descInfo?.range})</small>
+                        </strong>
+                        <strong style={{ fontSize: "12px", fontWeight: 700, color: "var(--navy)" }}>{count} ({pct}%)</strong>
+                      </div>
+                      <p style={{ margin: "2px 0 0 0", fontSize: "11px", color: "#556872", textAlign: "left", lineHeight: 1.3 }}>
+                        {descInfo?.summary}
+                      </p>
                     </div>
-                    <small>{currencyFormat.format(rent)}/mes</small>
                   </button>
                 );
               })}
@@ -1100,6 +1711,120 @@ function TenantScorecardDashboard({
         </article>
       </div>
 
+      {selectedRating && (() => {
+        const ratingInfo = RATING_CRITERIA_DESCRIPTIONS[selectedRating];
+        const ratingContracts = contracts.filter((c) => c.score.rating === selectedRating);
+        const ratingRent = rentByRating[selectedRating] ?? 0;
+        const totalRent = contracts.reduce((sum, c) => sum + (c.monthlyRent ?? 0), 0);
+        const ratingRentPct = totalRent > 0 ? (ratingRent / totalRent) * 100 : 0;
+        const ratingDocOk = ratingContracts.filter((c) => c.score.breakdown.documents === 30).length;
+        const ratingDocPct = ratingContracts.length ? (ratingDocOk / ratingContracts.length) * 100 : 0;
+
+        return (
+          <section className="status-detail-panel rating-criteria-detail-panel" style={{ marginTop: "16px", marginBottom: "20px" }} aria-live="polite">
+            <div className="status-detail-heading">
+              <div>
+                <span className="section-kicker">Criterio Representado</span>
+                <h3>Rating {selectedRating} · {ratingInfo?.label}</h3>
+                <p>{ratingInfo?.description}</p>
+              </div>
+              <button type="button" onClick={() => setSelectedRating(null)} aria-label="Cerrar detalle de criterio">Cerrar ✕</button>
+            </div>
+
+            <div className="rating-criteria-kpi-row" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px", margin: "14px 0" }}>
+              <div className="criteria-kpi-box" style={{ background: "#f8fafb", padding: "12px 14px", borderRadius: "10px", border: "1px solid #e2e8eb" }}>
+                <span style={{ fontSize: "10.5px", fontWeight: 800, textTransform: "uppercase", color: "#68777f" }}>Marcas en la categoría</span>
+                <strong style={{ display: "block", fontSize: "18px", color: "var(--navy)", fontFamily: "Montserrat, sans-serif", marginTop: "2px" }}>
+                  {ratingContracts.length} <small style={{ fontSize: "12px", color: "#68777f", fontWeight: 500 }}>({totalContracts ? numberFormat.format((ratingContracts.length / totalContracts) * 100) : 0}% de cartera)</small>
+                </strong>
+              </div>
+              <div className="criteria-kpi-box" style={{ background: "#f8fafb", padding: "12px 14px", borderRadius: "10px", border: "1px solid #e2e8eb" }}>
+                <span style={{ fontSize: "10.5px", fontWeight: 800, textTransform: "uppercase", color: "#68777f" }}>Renta Mensual Aportada</span>
+                <strong style={{ display: "block", fontSize: "18px", color: "#00886f", fontFamily: "Montserrat, sans-serif", marginTop: "2px" }}>
+                  {currencyFormat.format(ratingRent)} <small style={{ fontSize: "12px", color: "#68777f", fontWeight: 500 }}>({numberFormat.format(ratingRentPct)}% total)</small>
+                </strong>
+              </div>
+              <div className="criteria-kpi-box" style={{ background: "#f8fafb", padding: "12px 14px", borderRadius: "10px", border: "1px solid #e2e8eb" }}>
+                <span style={{ fontSize: "10.5px", fontWeight: 800, textTransform: "uppercase", color: "#68777f" }}>Salud Documental</span>
+                <strong style={{ display: "block", fontSize: "18px", color: ratingDocPct >= 80 ? "#00886f" : "#ac182c", fontFamily: "Montserrat, sans-serif", marginTop: "2px" }}>
+                  {numberFormat.format(ratingDocPct)}% <small style={{ fontSize: "12px", color: "#68777f", fontWeight: 500 }}>({ratingDocOk} de {ratingContracts.length} al 100%)</small>
+                </strong>
+              </div>
+            </div>
+
+            {ratingContracts.length > 0 ? (
+              <div className="status-detail-table-wrap">
+                <table className="status-detail-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Marca / Inquilino</th>
+                      <th>Ubicación / Local</th>
+                      <th>Score Total</th>
+                      <th>Desglose de Puntos</th>
+                      <th>Etapa Contractual</th>
+                      <th className="numeric">Renta Mensual</th>
+                      <th>Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ratingContracts.map((c, index) => (
+                      <tr key={c.key}>
+                        <td><strong>{index + 1}</strong></td>
+                        <td><strong>{c.brand}</strong></td>
+                        <td>{c.locationName} · {c.locals.map((l) => l.nomenclatura).join(", ") || "Sin local"}</td>
+                        <td><strong className={`rating-pill ${ratingInfo?.badgeTone}`}>{c.score.score} pts ({c.score.rating})</strong></td>
+                        <td style={{ minWidth: "160px" }}>
+                          <div className="doc-tags-mini" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px" }}>
+                            <span className={`doc-tag ${c.score.breakdown.documents === 30 ? "ok" : "risk"}`} title="Salud Documental (Max 30)">
+                              Doc: {c.score.breakdown.documents}/30
+                            </span>
+                            <span className={`doc-tag ${c.score.breakdown.renewal >= 8 ? "ok" : "risk"}`} title="Vigencia (Max 15)">
+                              Vig: {c.score.breakdown.renewal}/15
+                            </span>
+                            <span className={`doc-tag ${c.score.breakdown.formalized === 20 ? "ok" : "risk"}`} title="Formalización (Max 20)">
+                              Form: {c.score.breakdown.formalized}/20
+                            </span>
+                            <span className={`doc-tag ${c.score.breakdown.operation === 35 ? "ok" : "risk"}`} title="Operación (Max 35)">
+                              Oper: {c.score.breakdown.operation}/35
+                            </span>
+                          </div>
+                          {c.score.details.length > 0 && (
+                            <div style={{ marginTop: "6px", fontSize: "10px", color: "#ac182c", lineHeight: "1.2", paddingLeft: "2px" }}>
+                              {c.score.details.map((d, i) => <div key={i}>• {d}</div>)}
+                            </div>
+                          )}
+                        </td>
+                        <td>{c.contractStatus}</td>
+                        <td className="numeric"><strong>{currencyFormat.format(c.monthlyRent ?? 0)}</strong></td>
+                        <td>
+                          {onOpenLocal && c.locals[0] ? (
+                            <button
+                              type="button"
+                              className="table-action-btn"
+                              onClick={() => {
+                                const isGep = c.gerencia?.toLowerCase().includes("publicit") || c.contractNumber?.includes("GEP") || c.sourceSheet?.includes("GEP");
+                                onOpenLocal(c.locals[0].nomenclatura, isGep ? "gep" : c.locationId);
+                              }}
+                            >
+                              {(c.gerencia?.toLowerCase().includes("publicit") || c.contractNumber?.includes("GEP")) ? "Ver espacio →" : "Ver local →"}
+                            </button>
+                          ) : (
+                            <span className="text-muted">-</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="status-detail-empty">No hay registros clasificados en el Rating {selectedRating}.</p>
+            )}
+          </section>
+        );
+      })()}
+
       {/* Dynamic Narrative Section: Diagnóstico Rector & Dictamen Jurídico-Contractual */}
       <article className="scorecard-chart-card scorecard-narrative-card" aria-label="Diagnóstico y dictamen contractual">
         <header>
@@ -1112,7 +1837,7 @@ function TenantScorecardDashboard({
             <div className="narrative-paragraph-block">
               <span className="paragraph-badge">1. Salud Global de Cartera</span>
               <p>
-                A partir del análisis de los <b>{totalContracts} contratos</b> evaluados en las zonas comerciales del AIFA, la cartera registra un <b>Score Promedio Institucional de {averageScore}/100 pts</b> ({averageScore >= 75 ? "Solidez Alta" : averageScore >= 60 ? "Aceptable con Seguimiento" : "Atención Requerida"}). El <b>{totalContracts ? Math.round((((ratingCounts["A+"] ?? 0) + (ratingCounts.A ?? 0)) / totalContracts) * 100) : 0}% de las marcas</b> ({(ratingCounts["A+"] ?? 0) + (ratingCounts.A ?? 0)} arrendatarios) se clasifican en categorías de excelencia (<b>A+ y A</b>), mientras que el <b>{totalContracts ? Math.round((((ratingCounts.C ?? 0) + (ratingCounts.D ?? 0)) / totalContracts) * 100) : 0}%</b> ({(ratingCounts.C ?? 0) + (ratingCounts.D ?? 0)} marcas) requiere monitoreo de riesgo.
+                A partir del análisis de los <b>{totalContracts} contratos</b> evaluados en las zonas comerciales del AIFA, la cartera registra un <b>Score Promedio Institucional de {averageScore}/100 pts</b> ({averageScore >= 75 ? "Solidez Alta" : averageScore >= 60 ? "Aceptable con Seguimiento" : "Atención Requerida"}). El <b>{totalContracts ? Math.round((((ratingCounts["A+"] ?? 0) + (ratingCounts.A ?? 0)) / totalContracts) * 100) : 0}% de los contratos</b> ({(ratingCounts["A+"] ?? 0) + (ratingCounts.A ?? 0)} instrumentos) se clasifican en categorías de excelencia (<b>A+ y A</b>), mientras que el <b>{totalContracts ? Math.round((((ratingCounts.C ?? 0) + (ratingCounts.D ?? 0)) / totalContracts) * 100) : 0}%</b> ({(ratingCounts.C ?? 0) + (ratingCounts.D ?? 0)} contratos) requiere monitoreo de riesgo.
               </p>
             </div>
 
@@ -1126,7 +1851,7 @@ function TenantScorecardDashboard({
             <div className="narrative-paragraph-block">
               <span className="paragraph-badge">3. Dictamen de Vencimientos & Hoja de Ruta</span>
               <p>
-                Se detectan <b>{contracts.filter((c) => c.daysRemaining !== null && c.daysRemaining <= 90).length} instrumentos contractuales</b> con vencimiento cercano (≤ 90 días), amparando una renta de <b>{currencyFormat.format(contracts.filter((c) => c.daysRemaining !== null && c.daysRemaining <= 90).reduce((sum, c) => sum + (c.monthlyRent ?? 0), 0))}/mes</b>. Se dictamina a la Subdirección Comercial priorizar la renovación preventiva de las <b>{contracts.filter((c) => c.score.score < 60).length} marcas con Score inferior a 60 pts</b> para asegurar la continuidad de ingresos y la actualización de fianzas.
+                Se detectan <b>{contracts.filter((c) => c.daysRemaining !== null && c.daysRemaining <= 90).length} instrumentos contractuales</b> con vencimiento cercano (≤ 90 días), amparando una renta de <b>{currencyFormat.format(contracts.filter((c) => c.daysRemaining !== null && c.daysRemaining <= 90).reduce((sum, c) => sum + (c.monthlyRent ?? 0), 0))}/mes</b>. Se dictamina a la Subdirección Comercial priorizar la renovación preventiva de los <b>{contracts.filter((c) => c.score.score < 60).length} contratos con Score inferior a 60 pts</b> para asegurar la continuidad de ingresos y la actualización de fianzas.
               </p>
             </div>
           </div>
@@ -1207,7 +1932,7 @@ function TenantScorecardDashboard({
               <span className="section-kicker">Línea de tiempo operativa (Próximos 90 días)</span>
               <strong>Timeline Visual de Vencimientos y Renovaciones</strong>
             </div>
-            <p className="timeline-section-hint">Haz clic en cualquier marca sobre la línea de tiempo para ver su ventana de diagnóstico detallado.</p>
+            <p className="timeline-section-hint">Haz clic en cualquier contrato sobre la línea de tiempo para ver su ventana de diagnóstico detallado.</p>
           </header>
           <RenewalTimeline contracts={timelineContracts} onOpenLocal={onOpenLocal} />
         </article>
@@ -1478,7 +2203,7 @@ function RenewalTimeline({
             ) : filterZone === "critical" ? (
               <div className="tl-bg-zone zone-critical active-single-zone" style={{ width: "100%" }}>
                 <div className="zone-bg-header">
-                  <span className="zone-bg-title">🚨 Zona Crítica — Vencidos y Renovaciones en ≤ 30 días ({critical.length} marcas)</span>
+                  <span className="zone-bg-title">🚨 Zona Crítica — Vencidos y Renovaciones en ≤ 30 días ({critical.length} contratos)</span>
                   <span className="zone-bg-rent">Renta en riesgo: {currencyFormat.format(rentCritical)}/mes</span>
                 </div>
                 <span className="zone-bg-footer-hint">Plazo legal inmediato: requiere emisión de prórroga o entrega de local</span>
@@ -1486,7 +2211,7 @@ function RenewalTimeline({
             ) : filterZone === "watch" ? (
               <div className="tl-bg-zone zone-watch active-single-zone" style={{ width: "100%" }}>
                 <div className="zone-bg-header">
-                  <span className="zone-bg-title">⚠️ Zona de Seguimiento — Renovaciones en 31 a 60 días ({watch.length} marcas)</span>
+                  <span className="zone-bg-title">⚠️ Zona de Seguimiento — Renovaciones en 31 a 60 días ({watch.length} contratos)</span>
                   <span className="zone-bg-rent">Renta en seguimiento: {currencyFormat.format(rentWatch)}/mes</span>
                 </div>
                 <span className="zone-bg-footer-hint">Ventana de negociación activa y regularización de pólizas/fianzas</span>
@@ -1494,7 +2219,7 @@ function RenewalTimeline({
             ) : (
               <div className="tl-bg-zone zone-ok active-single-zone" style={{ width: "100%" }}>
                 <div className="zone-bg-header">
-                  <span className="zone-bg-title">📅 Zona Preventiva — Renovaciones en 61 a 90 días ({ok.length} marcas)</span>
+                  <span className="zone-bg-title">📅 Zona Preventiva — Renovaciones en 61 a 90 días ({ok.length} contratos)</span>
                   <span className="zone-bg-rent">Renta proyectada: {currencyFormat.format(rentOk)}/mes</span>
                 </div>
                 <span className="zone-bg-footer-hint">Planeación estratégica anticipada y revisión de condiciones comerciales</span>
@@ -1618,14 +2343,23 @@ function RenewalTimeline({
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   const first = c.locals[0];
-                                  const targetLocId = first.contractLocationId ?? (first as any).locationId ?? null;
+                                  const isGep = c.gerencia?.toLowerCase().includes("publicit") || c.contractNumber?.includes("GEP") || c.sourceSheet?.includes("GEP");
+                                  const targetLocId = isGep ? "gep" : (first.contractLocationId ?? (first as any).locationId ?? null);
                                   if (first.nomenclatura) {
                                     onOpenLocal(first.nomenclatura, targetLocId);
                                     setSelectedKey(null);
                                   }
                                 }}
                               >
-                                <span><b>1</b><strong>Ver local {c.locals[0].nomenclatura}</strong><em>Ir al local →</em></span>
+                                <span>
+                                  <b>1</b>
+                                  <strong>
+                                    {(c.gerencia?.toLowerCase().includes("publicit") || c.contractNumber?.includes("GEP")) ? `Ver espacio ${c.locals[0].nomenclatura}` : `Ver local ${c.locals[0].nomenclatura}`}
+                                  </strong>
+                                  <em>
+                                    {(c.gerencia?.toLowerCase().includes("publicit") || c.contractNumber?.includes("GEP")) ? "Ir a Publicidad →" : "Ir al local →"}
+                                  </em>
+                                </span>
                                 <small>{c.contractNumber ? `Contrato: ${c.contractNumber}` : "Expediente en trámite"}</small>
                               </button>
                             </div>
@@ -1728,12 +2462,26 @@ function ContractRows({
   expanded,
   onToggle,
   onOpenLocal,
+  onEdit,
+  onDelete,
 }: {
   contract: ContractAggregate;
   expanded: boolean;
   onToggle: () => void;
   onOpenLocal?: (nomenclature: string, locationId: string | null) => void;
+  onEdit?: (contract: ContractAggregate) => void;
+  onDelete?: (contract: ContractAggregate) => void;
 }) {
+  const safeScore: TenantScore = contract.score ?? {
+    score: 0,
+    rating: "D",
+    label: "Sin evaluar",
+    tone: "risk",
+    breakdown: { documents: 0, renewal: 0, formalized: 0, operation: 0 },
+    details: [],
+  };
+  const localsList = contract.locals ?? [];
+
   return (
     <>
       <tr className={expanded ? "expanded-row" : ""}>
@@ -1742,33 +2490,55 @@ function ContractRows({
           <small>
             {contract.pending
               ? "Expediente en trámite"
-              : `${contract.locals.length} ${contract.locals.length === 1 ? "local relacionado" : "locales relacionados"}`}
+              : `${localsList.length} ${localsList.length === 1 ? "local relacionado" : "locales relacionados"}`}
           </small>
         </td>
         <td>
           <div className="brand-rating-cell">
-            <strong>{contract.brand}</strong>
-            <TenantRatingBadge score={contract.score} />
+            <strong>{contract.brand || "Sin marca"}</strong>
+            <TenantRatingBadge score={safeScore} />
           </div>
           <small>{contract.commercialSubline ?? contract.commercialLine ?? "Sin giro contractual"}</small>
         </td>
         <td>
           <div className="local-chip-list">
-            {contract.locals.slice(0, 3).map((local) =>
-              onOpenLocal ? (
+            {localsList.map((local, idx) => {
+              const rawNom = String(local.nomenclatura || "").trim();
+              const isNonLocal =
+                !rawNom ||
+                rawNom.toUpperCase() === "N/A" ||
+                rawNom.toUpperCase().includes("SIN LOCAL") ||
+                rawNom === contract.contractNumber;
+
+              const chipKey = `chip-${local.id ?? idx}-${local.nomenclatura ?? idx}`;
+
+              if (isNonLocal) {
+                return (
+                  <span
+                    key={chipKey}
+                    className="local-chip-na"
+                    title="Contrato de servicio, aplicación de encuestas o sin local comercial físico"
+                  >
+                    Sin local asignado
+                  </span>
+                );
+              }
+
+              const isGepContract = contract.gerencia?.toLowerCase().includes("publicit") || contract.contractNumber?.includes("GEP") || contract.sourceSheet?.includes("GEP");
+              return onOpenLocal ? (
                 <button
                   type="button"
-                  key={`${local.contractSourceSheet}-${local.id}`}
-                  onClick={() => onOpenLocal(local.nomenclatura, local.contractLocationId ?? contract.locationId)}
-                  aria-label={`Abrir local ${local.nomenclatura}`}
+                  key={chipKey}
+                  onClick={() => onOpenLocal(local.nomenclatura, isGepContract ? "gep" : (local.contractLocationId ?? contract.locationId))}
+                  aria-label={isGepContract ? `Abrir espacio publicitario ${local.nomenclatura} en Publicidad` : `Abrir local ${local.nomenclatura}`}
+                  title={isGepContract ? `Ver ${local.nomenclatura} en Publicidad` : `Ver ${local.nomenclatura} en Locales`}
                 >
                   {local.nomenclatura}
                 </button>
               ) : (
-                <span key={`${local.contractSourceSheet}-${local.id}`}>{local.nomenclatura}</span>
-              ),
-            )}
-            {contract.locals.length > 3 && <span>+{contract.locals.length - 3}</span>}
+                <span key={chipKey}>{local.nomenclatura}</span>
+              );
+            })}
           </div>
         </td>
         <td className="numeric">
@@ -1801,15 +2571,43 @@ function ContractRows({
           <strong>{contract.manager}</strong>
         </td>
         <td>
-          <button
-            type="button"
-            className="detail-button"
-            onClick={onToggle}
-            aria-expanded={expanded}
-            aria-label={`${expanded ? "Ocultar" : "Mostrar"} contrato ${contract.contractNumber ?? contract.brand}`}
-          >
-            {expanded ? "−" : "+"}
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <button
+              type="button"
+              className="detail-button"
+              onClick={onToggle}
+              aria-expanded={expanded}
+              aria-label={`${expanded ? "Ocultar" : "Mostrar"} contrato ${contract.contractNumber ?? contract.brand}`}
+            >
+              {expanded ? "−" : "+"}
+            </button>
+            {onEdit && (
+              <button
+                type="button"
+                className="btn-contract-edit"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(contract);
+                }}
+                title="Editar este contrato"
+              >
+                ✏️
+              </button>
+            )}
+            {onDelete && (
+              <button
+                type="button"
+                className="btn-contract-delete"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(contract);
+                }}
+                title="Eliminar este contrato"
+              >
+                🗑️
+              </button>
+            )}
+          </div>
         </td>
       </tr>
       {expanded && (
@@ -1823,22 +2621,44 @@ function ContractRows({
                     <span className="section-kicker">Evaluación Institucional de Arrendatario</span>
                     <h4>{contract.brand}</h4>
                   </div>
-                  <TenantRatingBadge score={contract.score} />
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <TenantRatingBadge score={safeScore} />
+                    {onEdit && (
+                      <button
+                        type="button"
+                        className="btn-contract-edit"
+                        onClick={() => onEdit(contract)}
+                        title="Editar expediente del contrato"
+                      >
+                        ✏️ Editar
+                      </button>
+                    )}
+                    {onDelete && (
+                      <button
+                        type="button"
+                        className="btn-contract-delete"
+                        onClick={() => onDelete(contract)}
+                        title="Eliminar expediente del contrato"
+                      >
+                        🗑️ Eliminar
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="rating-score-bar-wrap">
                   <div className="rating-score-bar">
                     <div
-                      className={`rating-score-fill tone-${contract.score.tone}`}
-                      style={{ width: `${contract.score.score}%` }}
+                      className={`rating-score-fill tone-${safeScore.tone ?? "risk"}`}
+                      style={{ width: `${Math.min(100, Math.max(0, safeScore.score ?? 0))}%` }}
                     />
                   </div>
-                  <span>{contract.score.score} / 100 Puntos ({contract.score.label})</span>
+                  <span>{safeScore.score ?? 0} / 100 Puntos ({safeScore.label ?? "Sin evaluar"})</span>
                 </div>
-                {contract.score.details.length > 0 ? (
+                {(safeScore.details ?? []).length > 0 ? (
                   <div className="rating-observations">
                     <strong>Puntos de atención identificados:</strong>
                     <ul>
-                      {contract.score.details.map((obs, idx) => (
+                      {(safeScore.details ?? []).map((obs, idx) => (
                         <li key={idx}>⚠️ {obs}</li>
                       ))}
                     </ul>
@@ -1849,24 +2669,68 @@ function ContractRows({
               </div>
 
               <div className="contract-detail-group">
-                <span>Información contractual</span>
+                <span>Información contractual y de gestión</span>
+                <dl>
+                  {contract.razonSocial && (
+                    <div>
+                      <dt>Razón social</dt>
+                      <dd>{contract.razonSocial}</dd>
+                    </div>
+                  )}
+                  <div>
+                    <dt>Marca comercial</dt>
+                    <dd>{contract.brand}</dd>
+                  </div>
+                  <div>
+                    <dt>Gerencia</dt>
+                    <dd>{contract.gerencia}</dd>
+                  </div>
+                  <div>
+                    <dt>Gestor asignado</dt>
+                    <dd>{contract.manager}</dd>
+                  </div>
+                  <div>
+                    <dt>Zona comercial</dt>
+                    <dd>{contract.locationName}</dd>
+                  </div>
+                  <div>
+                    <dt>Giro / Subgiro</dt>
+                    <dd>{[contract.commercialLine, contract.commercialSubline].filter(Boolean).join(" · ") || "Sin dato"}</dd>
+                  </div>
+                </dl>
+              </div>
+
+              <div className="contract-detail-group">
+                <span>Condiciones Económicas (Pactado vs. Vigente)</span>
                 <dl>
                   <div>
-                    <dt>Giro comercial</dt>
-                    <dd>{contract.commercialLine ?? "Sin dato"}</dd>
+                    <dt>Costo / m² Pactado</dt>
+                    <dd>{contract.costPerM2 === null ? "Sin dato" : currencyFormat.format(contract.costPerM2)}</dd>
                   </div>
                   <div>
-                    <dt>Subgiro</dt>
-                    <dd>{contract.commercialSubline ?? "Sin dato"}</dd>
+                    <dt>Costo / m² Vigente</dt>
+                    <dd><strong>{contract.costPerM2Vigente === null ? "Sin dato" : currencyFormat.format(contract.costPerM2Vigente)}</strong></dd>
                   </div>
                   <div>
-                    <dt>Participación</dt>
+                    <dt>Renta Mensual Pactada</dt>
+                    <dd>{contract.monthlyRent === null ? "Sin dato" : currencyFormat.format(contract.monthlyRent)}</dd>
+                  </div>
+                  <div>
+                    <dt>Renta Mensual Vigente</dt>
+                    <dd><strong style={{ color: "#00886f" }}>{contract.monthlyRentVigente === null ? "Sin dato" : currencyFormat.format(contract.monthlyRentVigente)}</strong></dd>
+                  </div>
+                  <div>
+                    <dt>% Participación Pactada</dt>
                     <dd>
                       {contract.participationRate === null
-                        ? "No aplica / sin dato"
+                        ? "Sin dato"
                         : percentFormat.format(contract.participationRate)}
                       {contract.participationNotes ? ` · ${contract.participationNotes}` : ""}
                     </dd>
+                  </div>
+                  <div>
+                    <dt>% Participación Vigente</dt>
+                    <dd><strong>{contract.participationRateVigente === null ? "Sin dato" : percentFormat.format(contract.participationRateVigente)}</strong></dd>
                   </div>
                   <div>
                     <dt>Vigencia</dt>
@@ -1910,17 +2774,48 @@ function ContractRows({
               <div className="contract-detail-group contract-related-locals">
                 <span>Locales incluidos</span>
                 <div>
-                  {contract.locals.map((local) => (
-                    <article key={local.id}>
-                      <strong>{local.nomenclatura}</strong>
-                      <small>
-                        {numberFormat.format(local.metraje ?? 0)} m² · {local.areaComercial}
-                      </small>
-                      <span>
-                        {local.monthlyRent === null ? "Renta sin dato" : currencyFormat.format(local.monthlyRent)}
-                      </span>
-                    </article>
-                  ))}
+                  {localsList.map((local, idx) => {
+                    const rawNom = String(local.nomenclatura || "").trim();
+                    const isNonLocal =
+                      !rawNom ||
+                      rawNom.toUpperCase() === "N/A" ||
+                      rawNom.toUpperCase().includes("SIN LOCAL") ||
+                      rawNom === contract.contractNumber;
+
+                    const cardKey = `card-${local.id ?? idx}-${local.nomenclatura ?? idx}`;
+                    const isGepContract = contract.gerencia?.toLowerCase().includes("publicit") || contract.contractNumber?.includes("GEP") || contract.sourceSheet?.includes("GEP");
+                    return (
+                      <article
+                        key={cardKey}
+                        className={!isNonLocal && onOpenLocal ? "contract-local-clickable-card" : ""}
+                        onClick={() => {
+                          if (!isNonLocal && onOpenLocal) {
+                            onOpenLocal(local.nomenclatura, isGepContract ? "gep" : (local.contractLocationId ?? contract.locationId));
+                          }
+                        }}
+                        style={!isNonLocal && onOpenLocal ? { cursor: "pointer" } : undefined}
+                        title={!isNonLocal ? (isGepContract ? `Ver ${local.nomenclatura} en el menú de Publicidad` : `Ver ${local.nomenclatura} en el directorio de locales`) : undefined}
+                      >
+                        <strong>
+                          {isNonLocal ? "Sin local físico asignado" : local.nomenclatura}
+                          {!isNonLocal && onOpenLocal && (
+                            <span style={{ fontSize: "11px", color: isGepContract ? "#00886f" : "#ac182c", marginLeft: "6px", fontWeight: 600 }}>
+                              {isGepContract ? "Ver en Publicidad →" : "Ir a local →"}
+                            </span>
+                          )}
+                        </strong>
+                        <small>
+                          {local.metraje ? `${numberFormat.format(local.metraje)} m² · ` : ""}
+                          {local.areaComercial && local.areaComercial !== "N/A"
+                            ? local.areaComercial
+                            : (contract.commercialLine || "Servicio comercial")}
+                        </small>
+                        <span>
+                          {local.monthlyRent === null ? "Renta sin dato" : currencyFormat.format(local.monthlyRent)}
+                        </span>
+                      </article>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -2214,12 +3109,42 @@ function Pager({ page, totalPages, onChange }: { page: number; totalPages: numbe
   );
 }
 
-function ContractEmptyState({ locationName }: { locationName: string }) {
+function ContractEmptyState({
+  locationName,
+  selectedLocationId,
+  onSelectLocationId,
+  onResetFilters,
+}: {
+  locationName: string;
+  selectedLocationId?: string;
+  onSelectLocationId?: (locationId: string) => void;
+  onResetFilters?: () => void;
+}) {
   return (
-    <section className="empty-location">
+    <section className="empty-location contract-zone-empty" style={{ margin: "24px auto", maxWidth: "600px", textAlign: "center", padding: "32px 24px", background: "#ffffff", borderRadius: "12px", border: "1px solid #dfe4e7" }}>
       <span className="empty-location-mark">CTR</span>
-      <h2>Sin información contractual</h2>
-      <p>La base cargada para {locationName} no contiene todavía columnas o expedientes contractuales.</p>
+      <h2>Sin contratos registrados para esta selección</h2>
+      <p>No se encontraron expedientes en {locationName} con los filtros actuales.</p>
+      <div style={{ display: "flex", gap: "10px", justifyContent: "center", marginTop: "16px", flexWrap: "wrap" }}>
+        {onSelectLocationId && selectedLocationId !== "all" && (
+          <button
+            type="button"
+            className="primary-button"
+            onClick={() => onSelectLocationId("all")}
+          >
+            Ver todas las zonas comerciales
+          </button>
+        )}
+        {onResetFilters && (
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={onResetFilters}
+          >
+            Restablecer todos los filtros
+          </button>
+        )}
+      </div>
     </section>
   );
 }
