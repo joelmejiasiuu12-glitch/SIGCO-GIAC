@@ -4,12 +4,9 @@ import { useMemo, useState, type ReactNode } from "react";
 import { locationOptions, type AnalysisTarget, type EtpCommercialCapacityData, type LocalRecord, type PassengerTrafficRecord } from "@/app/types";
 import { CommercialCapacityAnalysis, ModuleBcgAnalysisCard } from "./SummaryDashboard";
 import ZoneMatrixComparison from "./ZoneMatrixComparison";
-import FinanceCenter from "./FinanceCenter";
-import FinancialIntelligenceView from "./FinancialIntelligenceView";
 
 export type IntelligenceView =
   | "locals_occupancy"
-  | "finance_collections"
   | "matrix"
   | "reports";
 
@@ -949,16 +946,6 @@ export default function IntelligenceCenter({
           </article>
         )}
       </section>
-    );
-  }
-
-  if (view === "finance_collections") {
-    return (
-      <FinancialIntelligenceView
-        records={intelligence.records}
-        onOpenLocal={onOpenLocal}
-        onUpload={onUpload}
-      />
     );
   }
 

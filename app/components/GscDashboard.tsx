@@ -406,6 +406,65 @@ export default function GscDashboard({
     return { soloFija, fijaMasVariable };
   }, [filteredContracts]);
 
+  // Embudo de Maduración Comercial (Conversion Funnel)
+  const funnelStages = useMemo(() => {
+    const totalSpaces = zoneLocales.length || 1;
+    const placedCount = operatingLocalsCount + obraLocalsList.length + formalizacionLocalsList.length;
+    const inProgressCount = operatingLocalsCount + obraLocalsList.length;
+
+    return [
+      {
+        step: 1,
+        name: "Inventario Total Registrado",
+        subtext: "Capacidad física comercial total",
+        count: zoneLocales.length,
+        pct: 100,
+        color: "#09212e",
+        metric: `${numberFormat.format(Math.round(totalCommercialAreaM2))} m² totales`,
+        delta: null,
+      },
+      {
+        step: 2,
+        name: "Espacios Formalizados / Asignados",
+        subtext: "Contratos formalizados o en trámite de firma",
+        count: placedCount,
+        pct: Math.round((placedCount / totalSpaces) * 100),
+        color: "#39a9db",
+        metric: `${numberFormat.format(gscContracts.length)} contratos en cartera`,
+        delta: `${availableLocalsCount} vacantes por colocar`,
+      },
+      {
+        step: 3,
+        name: "En Obra / Adecuación Física",
+        subtext: "Proyectos de obra en curso para apertura",
+        count: inProgressCount,
+        pct: Math.round((inProgressCount / totalSpaces) * 100),
+        color: "#f2c94c",
+        metric: `${obraLocalsList.length} obras en proceso`,
+        delta: `${formalizacionLocalsList.length} en proceso de firma`,
+      },
+      {
+        step: 4,
+        name: "Operando y Facturando",
+        subtext: "Locales abiertos generando contraprestación",
+        count: operatingLocalsCount,
+        pct: Math.round((operatingLocalsCount / totalSpaces) * 100),
+        color: "#00886f",
+        metric: `${currencyFormat.format(totalMonthlyRevenue)}/mes`,
+        delta: `${obraLocalsList.length} pendientes de apertura`,
+      },
+    ];
+  }, [
+    zoneLocales,
+    totalCommercialAreaM2,
+    operatingLocalsCount,
+    obraLocalsList.length,
+    formalizacionLocalsList.length,
+    availableLocalsCount,
+    gscContracts.length,
+    totalMonthlyRevenue,
+  ]);
+
   // Gestores Responsables y su Carga con Métricas Profundas de Supervisión
   const detailedManagers = useMemo(() => {
     const map = new Map<string, {
@@ -601,125 +660,102 @@ export default function GscDashboard({
         </nav>
       </header>
 
-      {/* 2. BARRA DE FILTROS Y SEGMENTACIÓN EJECUTIVA */}
-      <section className="gsc-filter-cockpit" aria-label="Filtros del Tablero">
-        <div className="gsc-filter-row">
-          {/* FILTRO 1: ZONAS COMERCIALES (7 OFICIALES + CONSOLIDADO) */}
-          <div className="filter-cluster">
-            <span className="filter-cluster-label">Zona Comercial:</span>
-            <div className="filter-chips-wrap">
-              <button
-                type="button"
-                className={`filter-chip ${selectedZone === "all" ? "active" : ""}`}
-                onClick={() => { setSelectedZone("all"); setLocalPage(1); }}
-              >
-                Todas ({gscContracts.length})
-              </button>
+      {/* 2. BARRA DE CONTROL Y FILTROS DIRECTIVOS */}
+      <section className="gsc-executive-toolbar" aria-label="Filtros del Tablero">
+        <div className="toolbar-left-group">
+          {/* Selector 1: Zona Comercial */}
+          <div className="toolbar-control-item">
+            <label htmlFor="gsc-filter-zone">
+              <span className="control-icon">📍</span> Zona:
+            </label>
+            <select
+              id="gsc-filter-zone"
+              className="toolbar-select"
+              value={selectedZone}
+              onChange={(e) => {
+                setSelectedZone(e.target.value);
+                setLocalPage(1);
+              }}
+            >
+              <option value="all">Todas las zonas ({gscContracts.length} contratos · {allLocales.length} locales)</option>
               {locationOptions.map((zone) => {
                 const count = gscContracts.filter((c) => {
                   const zMatch = (c.locationId || "").toLowerCase() === zone.id.toLowerCase();
                   const locMatch = c.locals.some((loc) => recordMatchesZone(loc, zone.id));
                   return zMatch || locMatch;
                 }).length;
+                const locCount = allLocales.filter((l) => recordMatchesZone(l, zone.id)).length;
                 return (
-                  <button
-                    key={zone.id}
-                    type="button"
-                    className={`filter-chip ${selectedZone === zone.id ? "active" : ""}`}
-                    onClick={() => { setSelectedZone(zone.id); setLocalPage(1); }}
-                  >
-                    {zone.shortName} <span className="chip-counter">{count}</span>
-                  </button>
+                  <option key={zone.id} value={zone.id}>
+                    {zone.name} ({count} contratos · {locCount} locales)
+                  </option>
                 );
               })}
-            </div>
+            </select>
           </div>
+
+          {/* Selector 2: Estatus Operativo */}
+          <div className="toolbar-control-item">
+            <label htmlFor="gsc-filter-status">
+              <span className="control-icon">🏷️</span> Estatus:
+            </label>
+            <select
+              id="gsc-filter-status"
+              className="toolbar-select"
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+            >
+              <option value="all">Todos los estatus ({zoneLocales.length} espacios)</option>
+              <option value="operando">🟢 En Funcionamiento ({operatingLocalsCount})</option>
+              <option value="obra">🟡 En Adaptación / Obra ({obraLocalsList.length})</option>
+              <option value="formalizacion">🔵 En Formalización ({formalizacionLocalsList.length})</option>
+              <option value="disponible">🟠 Disponibles ({availableLocalsCount})</option>
+            </select>
+          </div>
+
+          {/* Selector 3: Calificación / Scoring */}
+          <div className="toolbar-control-item">
+            <label htmlFor="gsc-filter-tier">
+              <span className="control-icon">⭐</span> Scoring:
+            </label>
+            <select
+              id="gsc-filter-tier"
+              className="toolbar-select"
+              value={selectedTier}
+              onChange={(e) => setSelectedTier(e.target.value)}
+            >
+              <option value="all">Todos los scores ({filteredContracts.length})</option>
+              <option value="A+">Tier A+ ({tierCounts["A+"]})</option>
+              <option value="A">Tier A ({tierCounts.A})</option>
+              <option value="B">Tier B ({tierCounts.B})</option>
+              <option value="C">Tier C ({tierCounts.C})</option>
+            </select>
+          </div>
+
+          {(selectedZone !== "all" || selectedStatus !== "all" || selectedTier !== "all") && (
+            <button
+              type="button"
+              className="toolbar-clear-btn"
+              onClick={() => {
+                setSelectedZone("all");
+                setSelectedStatus("all");
+                setSelectedTier("all");
+                setLocalPage(1);
+              }}
+              title="Restablecer todos los filtros"
+            >
+              ✕ Limpiar filtros
+            </button>
+          )}
         </div>
 
-        <div className="gsc-filter-row secondary-filters-row">
-          {/* FILTRO 2: LOS 4 ESTATUS OFICIALES */}
-          <div className="filter-cluster">
-            <span className="filter-cluster-label">Estatus Local:</span>
-            <div className="filter-chips-wrap">
-              <button
-                type="button"
-                className={`filter-chip ${selectedStatus === "all" ? "active" : ""}`}
-                onClick={() => setSelectedStatus("all")}
-              >
-                Todos ({zoneLocales.length})
-              </button>
-              <button
-                type="button"
-                className={`filter-chip status-chip-op ${selectedStatus === "operando" ? "active" : ""}`}
-                onClick={() => setSelectedStatus("operando")}
-              >
-                <i className="status-dot" style={{ background: statusColors["EN FUNCIONAMIENTO"] }} /> En Funcionamiento ({operatingLocalsCount})
-              </button>
-              <button
-                type="button"
-                className={`filter-chip status-chip-obra ${selectedStatus === "obra" ? "active" : ""}`}
-                onClick={() => setSelectedStatus("obra")}
-              >
-                <i className="status-dot" style={{ background: statusColors["EN ADAPTACION"] }} /> En Adaptación ({obraLocalsList.length})
-              </button>
-              <button
-                type="button"
-                className={`filter-chip status-chip-form ${selectedStatus === "formalizacion" ? "active" : ""}`}
-                onClick={() => setSelectedStatus("formalizacion")}
-              >
-                <i className="status-dot" style={{ background: statusColors["EN PROCESO DE ASIGNACION"] }} /> En Formalización ({formalizacionLocalsList.length})
-              </button>
-              <button
-                type="button"
-                className={`filter-chip status-chip-disp ${selectedStatus === "disponible" ? "active" : ""}`}
-                onClick={() => setSelectedStatus("disponible")}
-              >
-                <i className="status-dot" style={{ background: statusColors.DISPONIBLE }} /> Disponibles ({availableLocalsCount})
-              </button>
-            </div>
-          </div>
-
-          {/* FILTRO 3: CALIFICACIÓN / SCORE DE MARCAS */}
-          <div className="filter-cluster">
-            <span className="filter-cluster-label">Scoring Marcas:</span>
-            <div className="filter-chips-wrap tier-chips">
-              <button
-                type="button"
-                className={`filter-chip ${selectedTier === "all" ? "active" : ""}`}
-                onClick={() => setSelectedTier("all")}
-              >
-                Todos ({filteredContracts.length})
-              </button>
-              <button
-                type="button"
-                className={`filter-chip tier-chip-a-plus ${selectedTier === "A+" ? "active" : ""}`}
-                onClick={() => setSelectedTier("A+")}
-              >
-                A+ ({tierCounts["A+"]})
-              </button>
-              <button
-                type="button"
-                className={`filter-chip tier-chip-a ${selectedTier === "A" ? "active" : ""}`}
-                onClick={() => setSelectedTier("A")}
-              >
-                A ({tierCounts.A})
-              </button>
-              <button
-                type="button"
-                className={`filter-chip tier-chip-b ${selectedTier === "B" ? "active" : ""}`}
-                onClick={() => setSelectedTier("B")}
-              >
-                B ({tierCounts.B})
-              </button>
-              <button
-                type="button"
-                className={`filter-chip tier-chip-c ${selectedTier === "C" ? "active" : ""}`}
-                onClick={() => setSelectedTier("C")}
-              >
-                C ({tierCounts.C})
-              </button>
-            </div>
-          </div>
+        <div className="toolbar-right-summary">
+          <span className="toolbar-badge">
+            <strong>{filteredContracts.length}</strong> contratos filtrados
+          </span>
+          <span className="toolbar-badge secondary">
+            <strong>{zoneLocales.length}</strong> locales en {selectedZone === "all" ? "7 zonas" : (locationOptions.find(z => z.id === selectedZone)?.shortName || "zona")}
+          </span>
         </div>
       </section>
 
@@ -1045,6 +1081,61 @@ export default function GscDashboard({
                 </div>
               </article>
             </section>
+
+            {/* Gráfica 5: Embudo de Maduración Comercial */}
+            <article className="gsc-chart-card gsc-funnel-card">
+              <div className="chart-card-header funnel-header-flex">
+                <div>
+                  <span className="section-kicker" style={{ fontSize: "10.5px", fontWeight: 800, color: "#ac182c", textTransform: "uppercase", letterSpacing: "0.5px" }}>Pipeline y Conversión</span>
+                  <h4>Embudo de Maduración Comercial</h4>
+                  <small>Progresión de los espacios desde el inventario físico hasta la operación y facturación activa</small>
+                </div>
+                <div className="funnel-rate-chip">
+                  <span>Efectividad Operativa:</span>
+                  <strong>{zoneLocales.length > 0 ? Math.round((operatingLocalsCount / zoneLocales.length) * 100) : 0}%</strong>
+                </div>
+              </div>
+
+              <div className="gsc-funnel-stages-wrap">
+                {funnelStages.map((st, i) => (
+                  <div key={st.name} className="gsc-funnel-stage-item">
+                    <div className="funnel-stage-meta">
+                      <div className="funnel-step-badge" style={{ background: st.color }}>
+                        0{st.step}
+                      </div>
+                      <div className="funnel-step-titles">
+                        <strong>{st.name}</strong>
+                        <span>{st.subtext}</span>
+                      </div>
+                    </div>
+
+                    <div className="funnel-stage-bar-col">
+                      <div className="funnel-bar-track">
+                        <div
+                          className="funnel-bar-fill"
+                          style={{
+                            width: `${Math.max(st.pct, 8)}%`,
+                            background: st.color,
+                          }}
+                        >
+                          <span className="funnel-bar-pct-label">{st.pct}%</span>
+                        </div>
+                      </div>
+                      {st.delta && (
+                        <div className="funnel-delta-indicator">
+                          <span>{st.delta}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="funnel-stage-counts">
+                      <strong className="funnel-count-main">{numberFormat.format(st.count)} <small>espacios</small></strong>
+                      <span className="funnel-count-sub">{st.metric}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </article>
           </main>
         </div>
 

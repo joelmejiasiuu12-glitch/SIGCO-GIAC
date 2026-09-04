@@ -1022,7 +1022,7 @@ export default function DashboardClient() {
       : activeModule === "contracts"
         ? "Instrumentos contractuales"
         : activeModule === "intelligence"
-          ? intelligenceView === "locals_occupancy" ? `Análisis de ${currentLocation.shortName}` : intelligenceView === "finance_collections" ? "Análisis Financiero y Cobranza" : "Matriz 7 Zonas"
+          ? intelligenceView === "locals_occupancy" ? `Análisis de ${currentLocation.shortName}` : "Matriz 7 Zonas"
           : "Centro de Reportes";
   const heroDescription = activeModule === "gsc_dashboard"
     ? "Supervisión directiva de contratos comerciales, ocupación física, calificación de marcas y recaudación en el AIFA."
@@ -1364,7 +1364,6 @@ export default function DashboardClient() {
               {activeModule === "intelligence" && (
                 <>
                   <button className={intelligenceView === "locals_occupancy" ? "active" : ""} type="button" onClick={() => setIntelligenceView("locals_occupancy")}>📍 Análisis de Locales</button>
-                  <button className={intelligenceView === "finance_collections" ? "active" : ""} type="button" onClick={() => setIntelligenceView("finance_collections")}>💰 Análisis Financiero</button>
                   <button className={intelligenceView === "matrix" ? "active" : ""} type="button" onClick={() => setIntelligenceView("matrix")}>🏢 Matriz 7 Zonas</button>
                 </>
               )}

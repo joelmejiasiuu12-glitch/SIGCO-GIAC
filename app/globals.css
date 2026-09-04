@@ -14099,125 +14099,292 @@ reports-center-simple {
   transition: all 0.15s ease;
 }
 
-/* 2. COCKPIT DE FILTROS SEGMENTADOS */
-.gsc-filter-cockpit {
+/* 2. BARRA DE CONTROL Y FILTROS DIRECTIVOS */
+.gsc-executive-toolbar {
   background: #ffffff;
-  border-radius: 14px;
+  border-radius: 12px;
   border: 1px solid #dfe4e7;
-  padding: 14px 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  box-shadow: 0 2px 8px rgba(9, 33, 46, 0.02);
-}
-
-.gsc-filter-row {
+  padding: 10px 16px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  box-shadow: 0 2px 6px rgba(9, 33, 46, 0.02);
   flex-wrap: wrap;
+}
+
+.toolbar-left-group {
+  display: flex;
+  align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
-.gsc-filter-row.secondary-filters-row {
-  padding-top: 10px;
-  border-top: 1px solid #f1f5f9;
+.toolbar-control-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #09212e;
 }
 
-.filter-cluster {
+.toolbar-control-item label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #3b4d58;
+  white-space: nowrap;
+}
+
+.control-icon {
+  font-size: 13px;
+}
+
+.toolbar-select {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #0f172a;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-height: 34px;
+}
+
+.toolbar-select:hover {
+  border-color: #94a3b8;
+  background: #ffffff;
+}
+
+.toolbar-select:focus {
+  border-color: #ac182c;
+  box-shadow: 0 0 0 3px rgba(172, 24, 44, 0.12);
+  background: #ffffff;
+}
+
+.toolbar-clear-btn {
+  background: #fef2f2;
+  color: #ac182c;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.toolbar-clear-btn:hover {
+  background: #fee2e2;
+  border-color: #f87171;
+}
+
+.toolbar-right-summary {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
 }
 
-.filter-cluster-label {
-  font-size: 11px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-  color: #09212e;
-  white-space: nowrap;
-}
-
-.filter-chips-wrap {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  background: #f4f6f8;
-  padding: 3px;
-  border-radius: 8px;
-}
-
-.filter-chip {
-  background: transparent;
-  border: none;
+.toolbar-badge {
+  background: #f1f5f9;
+  color: #334155;
   font-size: 11.5px;
   font-weight: 600;
-  color: #596975;
   padding: 4px 10px;
   border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.15s ease;
+  border: 1px solid #e2e8f0;
   white-space: nowrap;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
 }
 
-.filter-chip:hover {
-  color: #09212e;
-  background: rgba(255, 255, 255, 0.6);
-}
-
-.filter-chip.active {
-  background: #ffffff;
-  color: #09212e;
-  font-weight: 700;
-  box-shadow: 0 1px 4px rgba(9, 33, 46, 0.1);
-}
-
-.filter-chip .chip-counter {
-  font-size: 10px;
-  font-weight: 700;
-  background: rgba(9, 33, 46, 0.08);
-  padding: 1px 5px;
-  border-radius: 10px;
-  color: #596975;
-}
-
-.filter-chip.active .chip-counter {
-  background: #fdf2f4;
+.toolbar-badge strong {
   color: #ac182c;
+  font-weight: 800;
 }
 
-.filter-chip.status-chip-op.active {
-  color: #00886f;
+.toolbar-badge.secondary {
+  background: #f8fafc;
+  color: #64748b;
 }
 
-.filter-chip.status-chip-obra.active {
-  color: #b45309;
+.toolbar-badge.secondary strong {
+  color: #0f172a;
 }
 
-.filter-chip.status-chip-form.active {
-  color: #0284c7;
+/* Gráfica 5: Embudo de Maduración Comercial */
+.gsc-funnel-card {
+  width: 100%;
 }
 
-.filter-chip.status-chip-disp.active {
-  color: #c2410c;
+.funnel-header-flex {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
-/* Tier chips */
-.tier-chips .tier-chip-a-plus.active { color: #00886f; }
-.tier-chips .tier-chip-a.active { color: #0284c7; }
-.tier-chips .tier-chip-b.active { color: #8a633f; }
-.tier-chips .tier-chip-c.active { color: #ac182c; }
+.funnel-rate-chip {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  padding: 6px 14px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #065f46;
+}
 
-.status-dot {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
+.funnel-rate-chip strong {
+  font-size: 14px;
+  font-weight: 800;
+  color: #047857;
+}
+
+.gsc-funnel-stages-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.gsc-funnel-stage-item {
+  display: grid;
+  grid-template-columns: 240px 1fr 160px;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 14px;
+  background: #f8fafc;
+  border-radius: 10px;
+  border: 1px solid #edf2f7;
+  transition: all 0.15s ease;
+}
+
+.gsc-funnel-stage-item:hover {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.funnel-stage-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.funnel-step-badge {
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
+  color: #ffffff;
+  font-size: 11.5px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+}
+
+.funnel-step-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.funnel-step-titles strong {
+  font-size: 13px;
+  font-weight: 750;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+.funnel-step-titles span {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.funnel-stage-bar-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.funnel-bar-track {
+  width: 100%;
+  height: 22px;
+  background: #e2e8f0;
+  border-radius: 6px;
+  overflow: hidden;
+  position: relative;
+}
+
+.funnel-bar-fill {
+  height: 100%;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 8px;
+  transition: width 0.4s ease-out;
+  box-shadow: inset 0 -1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.funnel-bar-pct-label {
+  font-size: 11px;
+  font-weight: 800;
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.funnel-delta-indicator {
+  display: flex;
+  justify-content: flex-end;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.funnel-stage-counts {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.funnel-count-main {
+  font-size: 15px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.funnel-count-main small {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.funnel-count-sub {
+  font-size: 11px;
+  font-weight: 600;
+  color: #059669;
+}
+
+@media (max-width: 900px) {
+  .gsc-funnel-stage-item {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .funnel-stage-counts {
+    align-items: flex-start;
+  }
 }
 
 /* 3. KPI GRID REDESIGNED */
