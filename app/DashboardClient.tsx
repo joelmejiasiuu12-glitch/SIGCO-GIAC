@@ -717,6 +717,11 @@ export default function DashboardClient() {
       }
     };
     const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.altKey && (e.key === "j" || e.key === "J")) || e.key === "F10") {
+        e.preventDefault();
+        toggleBoardroomMode();
+        return;
+      }
       if (e.key === "Escape" && isBoardroomMode) {
         setIsBoardroomMode(false);
         if (document.fullscreenElement) {
@@ -1207,28 +1212,6 @@ export default function DashboardClient() {
             >
               Alertas <span>{commercialAlerts.length}</span>
             </button>
-            <button
-              type="button"
-              className={`boardroom-header-button ${isBoardroomMode ? "active" : ""}`}
-              onClick={toggleBoardroomMode}
-              title={isBoardroomMode ? "Salir de Sala de Juntas (Esc)" : "Activar Modo Sala de Juntas / Pantalla Completa"}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px",
-                background: isBoardroomMode ? "#ac182c" : "rgba(255,255,255,0.12)",
-                color: "#ffffff",
-                border: "1px solid rgba(255,255,255,0.25)",
-                padding: "6px 12px",
-                borderRadius: "8px",
-                fontSize: "12px",
-                fontWeight: 700,
-                cursor: "pointer",
-                transition: "all 0.15s ease",
-              }}
-            >
-              📺 Sala de Juntas
-            </button>
             {(!currentUser || currentUser.canEdit) && (
               <>
                 <button type="button" className="add-local-header-button" onClick={handleOpenAddLocal} title="Registrar nuevo local comercial">
@@ -1358,6 +1341,21 @@ export default function DashboardClient() {
                           <span className="modal-info-val privilege-highlight">
                             Subdirección de Servicios Comerciales · AIFA
                           </span>
+                        </div>
+                        <div className="modal-info-item">
+                          <span className="modal-info-label">Herramienta Ejecutiva</span>
+                          <button
+                            type="button"
+                            className="modal-boardroom-action-btn"
+                            onClick={() => {
+                              setIsUserMenuOpen(false);
+                              toggleBoardroomMode();
+                            }}
+                            title="Alternar Modo Sala de Juntas / Pantalla Completa (Atajo: Alt + J)"
+                          >
+                            <span>📺 Activar Modo Sala de Juntas</span>
+                            <kbd className="modal-kbd">Alt + J</kbd>
+                          </button>
                         </div>
                       </div>
 
@@ -1889,6 +1887,20 @@ export default function DashboardClient() {
           onCapacityUpdated={(newCap) => setEtpCommercialCapacity(newCap)}
           onTrafficUpdated={(newTraffic) => setPassengerTraffic(newTraffic)}
         />
+      )}
+
+      {/* Botón flotante discreto de Sala de Juntas en esquina inferior */}
+      {!isBoardroomMode && (
+        <button
+          type="button"
+          className="floating-boardroom-pill"
+          onClick={toggleBoardroomMode}
+          title="Activar Modo Sala de Juntas (Atajo: Alt + J)"
+          aria-label="Modo Sala de Juntas"
+        >
+          <span>📺 Sala de Juntas</span>
+          <kbd>Alt + J</kbd>
+        </button>
       )}
     </main>
   );

@@ -15430,43 +15430,45 @@ reports-center-simple {
 }
 
 /* ==========================================================================
-   MODAL DE CUENTA INSTITUCIONAL
+   MODAL / MENÚ DESPLEGABLE DE CUENTA INSTITUCIONAL (POSICIÓN SUPERIOR DERECHA)
    ========================================================================== */
 .user-account-modal-overlay {
   position: fixed;
   inset: 0;
   z-index: 10000;
-  background: rgba(9, 33, 46, 0.65);
-  backdrop-filter: blur(4px);
+  background: rgba(9, 33, 46, 0.42);
+  backdrop-filter: blur(3px);
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  animation: modal-backdrop-enter 180ms ease-out both;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding-top: 54px;
+  padding-right: 20px;
+  animation: modal-backdrop-enter 150ms ease-out both;
 }
 
 .user-account-modal-card {
   background: #ffffff;
-  border-radius: 20px;
-  width: min(450px, 94vw);
-  box-shadow: 0 24px 60px rgba(9, 33, 46, 0.35);
-  border: 1px solid rgba(223, 228, 231, 0.8);
-  overflow: hidden;
-  animation: modal-card-enter 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  border-radius: 18px;
+  width: min(390px, 94vw);
+  max-height: calc(100vh - 75px);
+  overflow-y: auto;
+  box-shadow: 0 20px 48px rgba(9, 33, 46, 0.35);
+  border: 1px solid rgba(223, 228, 231, 0.95);
+  animation: modal-card-enter 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .modal-account-header {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 20px 24px 16px;
+  gap: 12px;
+  padding: 16px 20px 14px;
   position: relative;
 }
 
 .modal-avatar-circle {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
   background: #f1f5f9;
   display: flex;
   align-items: center;
@@ -15478,13 +15480,13 @@ reports-center-simple {
 .modal-user-headings {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
   flex: 1;
   min-width: 0;
 }
 
 .modal-institution-tag {
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 800;
   color: #ac182c;
   letter-spacing: 0.06em;
@@ -15492,7 +15494,7 @@ reports-center-simple {
 }
 
 .modal-user-fullname {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
   color: #09212e;
   white-space: nowrap;
@@ -15503,18 +15505,18 @@ reports-center-simple {
 .modal-role-pill {
   display: inline-block;
   align-self: flex-start;
-  padding: 2px 8px;
+  padding: 2px 7px;
   background: #e6f4f1;
   color: #00886f;
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 700;
-  border-radius: 6px;
+  border-radius: 5px;
   border: 1px solid #a7f3d0;
 }
 
 .modal-close-btn {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   border: 1px solid #dfe4e7;
   background: #ffffff;
@@ -15522,7 +15524,7 @@ reports-center-simple {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: 13px;
   cursor: pointer;
   transition: all 0.15s ease;
   flex-shrink: 0;
@@ -15541,10 +15543,10 @@ reports-center-simple {
 }
 
 .modal-account-body {
-  padding: 18px 24px;
+  padding: 14px 20px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
 }
 
 .modal-info-item {
@@ -15554,7 +15556,7 @@ reports-center-simple {
 }
 
 .modal-info-label {
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
   color: #64748b;
   text-transform: uppercase;
@@ -15562,7 +15564,7 @@ reports-center-simple {
 }
 
 .modal-info-val {
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 600;
   color: #1e293b;
 }
@@ -15572,8 +15574,43 @@ reports-center-simple {
   font-weight: 700;
 }
 
+.modal-boardroom-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 9px 12px;
+  margin-top: 4px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #09212e;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.modal-boardroom-action-btn:hover {
+  background: #edf2f7;
+  border-color: #00886f;
+  color: #00886f;
+}
+
+.modal-kbd {
+  padding: 2px 6px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  font-size: 10px;
+  font-family: inherit;
+  font-weight: 800;
+  color: #64748b;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+}
+
 .modal-account-footer {
-  padding: 16px 24px 20px;
+  padding: 12px 20px 16px;
   background: #f8fafc;
   display: flex;
   justify-content: flex-end;
@@ -15582,13 +15619,13 @@ reports-center-simple {
 .modal-logout-action-btn {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 18px;
+  gap: 7px;
+  padding: 8px 16px;
   background: #ac182c;
   color: #ffffff;
   border: none;
-  border-radius: 10px;
-  font-size: 13px;
+  border-radius: 9px;
+  font-size: 12.5px;
   font-weight: 700;
   cursor: pointer;
   transition: background 0.15s ease, transform 0.15s ease;
@@ -15598,6 +15635,514 @@ reports-center-simple {
   background: #8f1325;
   transform: translateY(-1px);
 }
+
+/* Botón flotante discreto de Sala de Juntas en esquina inferior */
+.floating-boardroom-pill {
+  position: fixed;
+  bottom: 22px;
+  right: 24px;
+  z-index: 990;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: #09212e;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 24px;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 8px 24px rgba(9, 33, 46, 0.35);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.floating-boardroom-pill:hover {
+  background: #ac182c;
+  border-color: #ac182c;
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(172, 24, 44, 0.4);
+}
+
+.floating-boardroom-pill kbd {
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+/* ==========================================================================
+   ESTILOS COMPLETOS DEL MÓDULO DE PUBLICIDAD (ADVERTISING CENTER)
+   ========================================================================== */
+.advertising-center-root {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  width: 100%;
+}
+
+.advertising-subnav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  background: #ffffff;
+  border: 1px solid #dfe4e7;
+  border-radius: 12px;
+  box-shadow: 0 4px 14px rgba(9, 33, 46, 0.04);
+  overflow-x: auto;
+}
+
+.advertising-subnav button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #596975;
+  font-family: "Montserrat AIFA", Montserrat, Arial, sans-serif;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.advertising-subnav button:hover {
+  background: #f1f5f9;
+  color: #09212e;
+}
+
+.advertising-subnav button.active {
+  background: #ac182c;
+  color: #ffffff;
+  box-shadow: 0 3px 10px rgba(172, 24, 44, 0.25);
+}
+
+.advertising-content-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 100%;
+}
+
+.advertising-controls-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.adv-search-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 280px;
+  max-width: 620px;
+  display: flex;
+  align-items: center;
+}
+
+.adv-search-wrap span {
+  position: absolute;
+  left: 14px;
+  pointer-events: none;
+  font-size: 14px;
+  color: #64748b;
+}
+
+.adv-search-input {
+  width: 100%;
+  height: 42px;
+  padding: 0 38px 0 40px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 10px;
+  background: #ffffff;
+  font-size: 13.5px;
+  color: #0f172a;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.adv-search-input:focus {
+  border-color: #00886f;
+  box-shadow: 0 0 0 3px rgba(0, 136, 111, 0.15);
+}
+
+.adv-clear-btn {
+  position: absolute;
+  right: 12px;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.adv-view-toggles {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #ffffff;
+  border: 1px solid #dfe4e7;
+  border-radius: 8px;
+  padding: 3px;
+}
+
+.adv-view-toggles button {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.adv-view-toggles button.active {
+  background: #09212e;
+  color: #ffffff;
+}
+
+.adv-slicers-row {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: #ffffff;
+  padding: 14px 18px;
+  border-radius: 12px;
+  border: 1px solid #dfe4e7;
+}
+
+.adv-slicer-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.adv-slicer-label {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  min-width: 120px;
+}
+
+.adv-slicer-pills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.adv-slicer-pills button {
+  padding: 5px 12px;
+  border-radius: 20px;
+  border: 1px solid #dfe4e7;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.adv-slicer-pills button:hover {
+  background: #f1f5f9;
+  color: #09212e;
+}
+
+.adv-slicer-pills button.active {
+  background: #00886f;
+  border-color: #00886f;
+  color: #ffffff;
+}
+
+.adv-meta-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12.5px;
+  color: #64748b;
+  font-weight: 600;
+  padding: 4px 2px;
+}
+
+.adv-meta-operating-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #00886f;
+  font-weight: 700;
+}
+
+.adv-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 16px;
+}
+
+.adv-unit-card {
+  background: #ffffff;
+  border: 1px solid #dfe4e7;
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 4px 12px rgba(9, 33, 46, 0.03);
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.adv-unit-card:hover {
+  border-color: #00886f;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(9, 33, 46, 0.08);
+}
+
+.adv-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.adv-card-icon-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.adv-card-icon {
+  font-size: 22px;
+}
+
+.adv-unit-id {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #94a3b8;
+  display: block;
+}
+
+.adv-unit-code {
+  font-size: 14.5px;
+  font-weight: 800;
+  color: #09212e;
+}
+
+.adv-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0;
+  border-top: 1px solid #f1f5f9;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.adv-card-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.adv-row-label {
+  color: #64748b;
+  font-weight: 500;
+}
+
+.adv-row-val {
+  color: #0f172a;
+  font-weight: 700;
+  text-align: right;
+}
+
+.adv-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+}
+
+.adv-card-action-btn {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #ac182c;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.adv-table-wrap {
+  background: #ffffff;
+  border: 1px solid #dfe4e7;
+  border-radius: 14px;
+  overflow-x: auto;
+}
+
+.adv-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(9, 33, 46, 0.65);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.adv-modal-dialog {
+  background: #ffffff;
+  border-radius: 18px;
+  width: min(650px, 94vw);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  box-shadow: 0 24px 60px rgba(9, 33, 46, 0.35);
+  border: 1px solid #dfe4e7;
+}
+
+.adv-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid #dfe4e7;
+}
+
+.adv-modal-title-wrap {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.adv-modal-big-icon {
+  font-size: 28px;
+}
+
+.adv-modal-kicker {
+  font-size: 11px;
+  font-weight: 800;
+  color: #ac182c;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.adv-modal-header h2 {
+  margin: 4px 0 0;
+  font-size: 18px;
+  font-weight: 800;
+  color: #09212e;
+}
+
+.adv-modal-close-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid #dfe4e7;
+  background: #ffffff;
+  color: #596975;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.adv-modal-body {
+  padding: 20px 24px;
+}
+
+.adv-modal-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.adv-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.adv-modal-field.full-width {
+  grid-column: 1 / -1;
+}
+
+.field-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.field-val {
+  font-size: 13.5px;
+  color: #09212e;
+}
+
+.field-obs-text {
+  font-size: 12.5px;
+  color: #475569;
+  line-height: 1.5;
+  background: #f8fafc;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.adv-modal-contract-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.contract-link-btn {
+  font-weight: 700;
+  color: #ac182c;
+  font-size: 13px;
+}
+
+.adv-modal-contract-action {
+  font-size: 12px;
+  font-weight: 700;
+  color: #00886f;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.adv-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 14px 24px 18px;
+  border-top: 1px solid #dfe4e7;
+  background: #f8fafc;
+}
+
+.adv-modal-primary-close {
+  padding: 8px 20px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #09212e;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 
 /* ==========================================================================
    MODALES DE ALTA DE LOCAL Y CONTRATO

@@ -21,26 +21,6 @@ export type ValidCredential = {
 export const AUTHORIZED_USERS: ValidCredential[] = [
   {
     usernames: [
-      "andrea aifa — administrador de gpgc",
-      "andrea aifa - administrador de gpgc",
-      "andrea aifa",
-      "andrea",
-      "administrador de gpgc",
-      "admin",
-    ],
-    password: "SSC&Dsje.",
-    user: {
-      username: "Andrea AIFA — Administrador de GPGC",
-      fullName: "Andrea AIFA · Administrador de GPGC",
-      role: "subdirectora",
-      roleLabel: "Administrador de GPGC",
-      shortRole: "Andrea AIFA",
-      canEdit: true,
-      canDelete: true,
-    },
-  },
-  {
-    usernames: [
       "encargada de la subdirección servicios comerciales",
       "encargada de la subdireccion servicios comerciales",
       "encargada de la subdirección",

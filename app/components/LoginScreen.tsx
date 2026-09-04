@@ -8,7 +8,7 @@ interface LoginScreenProps {
 }
 
 export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
-  const [selectedUser, setSelectedUser] = useState<string>("Andrea AIFA — Administrador de GPGC");
+  const [selectedUser, setSelectedUser] = useState<string>("Encargada de la Subdirección Servicios Comerciales");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,19 +50,19 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
           />
         </div>
 
-        {/* Encabezado Institucional GPGC */}
+        {/* Encabezado Institucional GIAC */}
         <div className="gpgc-login-header">
           <span className="gpgc-login-kicker">DIRECCIÓN COMERCIAL Y DE SERVICIOS</span>
-          <h1 className="gpgc-login-title">GPGC App</h1>
-          <p className="gpgc-login-subtitle">Grupo de Prospección y Gestión Comercial</p>
+          <h1 className="gpgc-login-title">SGCO</h1>
+          <p className="gpgc-login-subtitle">Grupo de Inteligencia y Análisis Comercial</p>
         </div>
 
         {/* Formulario de Acceso */}
         <form onSubmit={handleSubmit} className="gpgc-login-form">
-          {/* Selector de Usuario / Integrante GPGC */}
+          {/* Selector de Usuario / Integrante GIAC */}
           <div className="gpgc-form-group">
             <label htmlFor="gpgc-user-select" className="gpgc-label">
-              Usuario / Integrante GPGC
+              Usuario / Integrante GIAC
             </label>
             <div className="gpgc-select-wrapper">
               <select
@@ -75,9 +75,6 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 className="gpgc-select"
                 required
               >
-                <option value="Andrea AIFA — Administrador de GPGC">
-                  Andrea AIFA — Administrador de GPGC
-                </option>
                 <option value="Encargada de la Subdirección Servicios Comerciales">
                   Encargada de la Subdirección — Servicios Comerciales
                 </option>
