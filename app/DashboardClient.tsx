@@ -56,7 +56,6 @@ import ContractFormModal from "./components/ContractFormModal";
 import CommercialAlertsModal, { buildCommercialAlerts } from "./components/CommercialAlerts";
 import ContractCenter, { buildContracts, recordMatchesZone } from "./components/ContractCenter";
 import DirectoryAnalytics from "./components/DirectoryAnalytics";
-import FinanceCenter from "./components/FinanceCenter";
 import GlobalSummary from "./components/GlobalSummary";
 import InstitutionalCenter from "./components/InstitutionalCenter";
 import IntelligenceCenter, { type IntelligenceView } from "./components/IntelligenceCenter";
@@ -81,7 +80,7 @@ type FilterKey =
   | "gerencia";
 
 type SortKey = "nomenclatura" | "marca" | "metraje" | "estatus";
-type PrimaryModule = "home" | "locals" | "contracts" | "finances" | "reports" | "advertising" | "intelligence" | "gsc_dashboard";
+type PrimaryModule = "home" | "locals" | "advertising" | "contracts" | "reports" | "intelligence" | "gsc_dashboard";
 type HomeView = "global" | "zone";
 type LocalView = "summary" | "directory";
 type ContractView = "summary" | "preformalization" | "formalization" | "formalized" | "cancelled" | "expired" | "agreements";
@@ -260,9 +259,7 @@ export default function DashboardClient() {
   const [intelligenceView, setIntelligenceView] = useState<IntelligenceView>("locals_occupancy");
   const [analysisTarget, setAnalysisTarget] = useState<AnalysisTarget>("capacity");
   const [locationId, setLocationId] = useState("etp");
-  const [financeLocationId, setFinanceLocationId] = useState("etp");
   const [contractLocationId, setContractLocationId] = useState("all");
-  const [financeSubTab, setFinanceSubTab] = useState<"billed_vs_recovered" | "overdue_debt">("billed_vs_recovered");
   const [datasets, setDatasets] = useState<Dataset>(emptyDatasets);
   const [standaloneContractRecords, setStandaloneContractRecords] = useState<LocalRecord[]>([]);
   const records = useMemo(() => datasets[locationId] ?? [], [datasets, locationId]);
@@ -798,12 +795,6 @@ export default function DashboardClient() {
     [allContractRecords],
   );
   const commercialAlerts = useMemo(() => buildCommercialAlerts(datasets.etp ?? []), [datasets]);
-  const financeRecords = useMemo(
-    () => financeLocationId === "all" ? Object.values(datasets).flat() : datasets[financeLocationId] ?? [],
-    [datasets, financeLocationId],
-  );
-  const financeLocation = locationOptions.find((location) => location.id === financeLocationId);
-  const financeScopeLabel = financeLocationId === "all" ? "Todas las zonas comerciales" : financeLocation?.name ?? "Zona comercial";
   const contractRecords = useMemo(() => {
     if (contractLocationId === "all") return allContractRecords;
     if (standaloneContractRecords.length) {
@@ -1018,8 +1009,8 @@ export default function DashboardClient() {
 
 
 
-  const isGlobalContext = (activeModule === "contracts" && contractLocationId === "all") || (activeModule === "finances" && financeLocationId === "all") || activeModule === "reports" || (activeModule === "intelligence" && locationId === "all") || (activeModule === "home" && homeView === "global") || activeModule === "advertising";
-  const contextRecordCount = activeModule === "advertising" ? advertisingSpaces.length : activeModule === "finances" ? financeRecords.length : activeModule === "contracts" ? contractRecords.length : isGlobalContext ? totalSessionRecords : records.length;
+  const isGlobalContext = (activeModule === "contracts" && contractLocationId === "all") || activeModule === "reports" || (activeModule === "intelligence" && locationId === "all") || (activeModule === "home" && homeView === "global") || activeModule === "advertising";
+  const contextRecordCount = activeModule === "advertising" ? advertisingSpaces.length : activeModule === "contracts" ? contractRecords.length : isGlobalContext ? totalSessionRecords : records.length;
   const heroTitle = activeModule === "gsc_dashboard"
     ? "Tablero Ejecutivo de Servicios Comerciales"
     : activeModule === "advertising"
@@ -1030,11 +1021,9 @@ export default function DashboardClient() {
       ? `Directorio de ${currentLocation.shortName}`
       : activeModule === "contracts"
         ? "Instrumentos contractuales"
-        : activeModule === "finances"
-          ? "Resumen financiero"
-          : activeModule === "intelligence"
-            ? intelligenceView === "locals_occupancy" ? `Análisis de ${currentLocation.shortName}` : intelligenceView === "finance_collections" ? "Análisis Financiero y Cobranza" : "Matriz 7 Zonas"
-            : "Centro de Reportes";
+        : activeModule === "intelligence"
+          ? intelligenceView === "locals_occupancy" ? `Análisis de ${currentLocation.shortName}` : intelligenceView === "finance_collections" ? "Análisis Financiero y Cobranza" : "Matriz 7 Zonas"
+          : "Centro de Reportes";
   const heroDescription = activeModule === "gsc_dashboard"
     ? "Supervisión directiva de contratos comerciales, ocupación física, calificación de marcas y recaudación en el AIFA."
     : activeModule === "advertising"
@@ -1047,11 +1036,9 @@ export default function DashboardClient() {
       ? "Consulta el inventario físico y operativo de los espacios sin mezclarlo con el seguimiento detallado de los contratos."
     : activeModule === "contracts"
         ? "Consulta la cartera completa y da seguimiento a cada etapa contractual, desde la preformalización hasta su conclusión."
-        : activeModule === "finances"
-          ? "Analiza la renta contratada, la proyección anual, el costo por metro cuadrado y las condiciones de participación de la cartera vigente."
-          : activeModule === "intelligence"
-            ? intelligenceView === "locals_occupancy" ? `Convierte los indicadores de ${currentLocation.shortName} en conclusiones ejecutivas, evidencia y rutas de acción.` : "Visualiza el análisis especializado por área comercial, contractual y financiera de las 7 zonas comerciales."
-            : "Genera documentos administrativos estandarizados con la información procesada por SIGCO.";
+        : activeModule === "intelligence"
+          ? intelligenceView === "locals_occupancy" ? `Convierte los indicadores de ${currentLocation.shortName} en conclusiones ejecutivas, evidencia y rutas de acción.` : "Visualiza el análisis especializado por área comercial, contractual y financiera de las 7 zonas comerciales."
+          : "Genera documentos administrativos estandarizados con la información procesada por SIGCO.";
   const moduleTransitionKey = activeModule === "home"
     ? `${activeModule}-${homeView}`
     : activeModule === "contracts"
@@ -1061,7 +1048,6 @@ export default function DashboardClient() {
         : activeModule;
 
   const openModule = (module: PrimaryModule) => {
-    if (module === "finances" && activeModule !== "finances") setFinanceLocationId(isGlobalContext ? "all" : locationId);
     if (module === "contracts" && activeModule !== "contracts") {
       setContractLocationId("all");
       setContractGerenciaFilter("all");
@@ -1141,10 +1127,6 @@ export default function DashboardClient() {
   };
 
   const handleScopeChange = (value: string) => {
-    if (activeModule === "finances") {
-      setFinanceLocationId(value);
-      return;
-    }
     if (activeModule === "contracts") {
       setContractLocationId(value);
       return;
@@ -1183,9 +1165,8 @@ export default function DashboardClient() {
       <button tabIndex={fixed ? 0 : isModuleMenuFixed ? -1 : undefined} className={activeModule === "locals" ? "active" : ""} type="button" onClick={() => openModule("locals")}><span>02</span>Locales</button>
       <button tabIndex={fixed ? 0 : isModuleMenuFixed ? -1 : undefined} className={activeModule === "advertising" ? "active" : ""} type="button" onClick={() => openModule("advertising")}><span>03</span>Publicidad</button>
       <button tabIndex={fixed ? 0 : isModuleMenuFixed ? -1 : undefined} className={activeModule === "contracts" ? "active" : ""} type="button" onClick={() => openModule("contracts")}><span>04</span>Contratos</button>
-      <button tabIndex={fixed ? 0 : isModuleMenuFixed ? -1 : undefined} className={activeModule === "finances" ? "active" : ""} type="button" onClick={() => openModule("finances")}><span>05</span>Finanzas</button>
-      <button tabIndex={fixed ? 0 : isModuleMenuFixed ? -1 : undefined} className={activeModule === "reports" ? "active" : ""} type="button" onClick={() => openModule("reports")}><span>06</span>Reportes</button>
-      <button tabIndex={fixed ? 0 : isModuleMenuFixed ? -1 : undefined} className={activeModule === "intelligence" ? "active" : ""} type="button" onClick={() => openModule("intelligence")}><span>07</span>Análisis</button>
+      <button tabIndex={fixed ? 0 : isModuleMenuFixed ? -1 : undefined} className={activeModule === "reports" ? "active" : ""} type="button" onClick={() => openModule("reports")}><span>05</span>Reportes</button>
+      <button tabIndex={fixed ? 0 : isModuleMenuFixed ? -1 : undefined} className={activeModule === "intelligence" ? "active" : ""} type="button" onClick={() => openModule("intelligence")}><span>06</span>Análisis</button>
     </div>
   );
 
@@ -1241,7 +1222,7 @@ export default function DashboardClient() {
           <div className="top-context-actions">
             <label className="compact-location-picker">
               <span>Zona comercial</span>
-              <select value={activeModule === "finances" ? financeLocationId : activeModule === "contracts" ? contractLocationId : activeModule === "intelligence" ? locationId : isGlobalContext ? "all" : locationId} onChange={(event) => handleScopeChange(event.target.value)} aria-label="Zona comercial">
+              <select value={activeModule === "contracts" ? contractLocationId : activeModule === "intelligence" ? locationId : isGlobalContext ? "all" : locationId} onChange={(event) => handleScopeChange(event.target.value)} aria-label="Zona comercial">
                 <option value="all">Todas las zonas</option>
                 {locationOptions.map((location) => <option key={location.id} value={location.id}>{location.shortName}</option>)}
               </select>
@@ -1344,13 +1325,13 @@ export default function DashboardClient() {
           <div className="hero" id="inicio">
             <div>
               <span className="section-kicker">Aeropuerto Internacional Felipe Ángeles</span>
-              <span className="module-context">{activeModule === "home" ? "Inicio" : activeModule === "locals" ? "Gestión de locales" : activeModule === "advertising" ? "Espacios publicitarios" : activeModule === "contracts" ? "Gestión contractual" : activeModule === "finances" ? "Análisis financiero" : activeModule === "intelligence" ? "Análisis rector" : "Salidas administrativas"}</span>
+              <span className="module-context">{activeModule === "home" ? "Inicio" : activeModule === "locals" ? "Gestión de locales" : activeModule === "advertising" ? "Espacios publicitarios" : activeModule === "contracts" ? "Gestión contractual" : activeModule === "intelligence" ? "Análisis rector" : "Salidas administrativas"}</span>
               <h1>{heroTitle}</h1>
-              {activeModule !== "finances" && <p>{heroDescription}</p>}
+              <p>{heroDescription}</p>
             </div>
             <div className="hero-scope-card">
               <span>Contexto activo</span>
-              <strong>{activeModule === "advertising" ? "Inventario Publicitario (GEP)" : activeModule === "finances" ? financeScopeLabel : activeModule === "contracts" ? contractScopeLabel : isGlobalContext ? "7 zonas comerciales" : currentLocation.name}</strong>
+              <strong>{activeModule === "advertising" ? "Inventario Publicitario (GEP)" : activeModule === "contracts" ? contractScopeLabel : isGlobalContext ? "7 zonas comerciales" : currentLocation.name}</strong>
               <small>{activeModule === "advertising" ? `${numberFormat.format(advertisingSpaces.length)} soportes supervisados` : contextRecordCount ? `${numberFormat.format(contextRecordCount)} locales activos` : "Cargando información comercial..."}</small>
             </div>
           </div>
@@ -1368,7 +1349,7 @@ export default function DashboardClient() {
         {!isBoardroomMode && activeModule !== "reports" && activeModule !== "gsc_dashboard" && activeModule !== "advertising" && (
           <nav className="context-tabs" aria-label="Vistas del módulo">
             <div>
-              <span>{activeModule === "home" ? "Panorama" : activeModule === "locals" ? "Locales" : activeModule === "contracts" ? "Contratos" : activeModule === "finances" ? "Finanzas" : "Análisis"}</span>
+              <span>{activeModule === "home" ? "Panorama" : activeModule === "locals" ? "Locales" : activeModule === "contracts" ? "Contratos" : "Análisis"}</span>
               {activeModule === "home" && <><button className={homeView === "global" ? "active" : ""} type="button" onClick={() => setHomeView("global")}>Resumen global</button><button className={homeView === "zone" ? "active" : ""} type="button" onClick={() => { if (locationId === "all") changeLocation("etp"); setHomeView("zone"); }}>Resumen de zona</button></>}
               {activeModule === "locals" && (
                 <button className="active" type="button" onClick={() => setLocalView("directory")}>
@@ -1380,12 +1361,6 @@ export default function DashboardClient() {
                   Instrumentos
                 </button>
               )}
-              {activeModule === "finances" && (
-                <>
-                  <button className={financeSubTab === "billed_vs_recovered" ? "active" : ""} type="button" onClick={() => setFinanceSubTab("billed_vs_recovered")}>Facturado vs. Recuperado</button>
-                  <button className={financeSubTab === "overdue_debt" ? "active" : ""} type="button" onClick={() => setFinanceSubTab("overdue_debt")}>Cartera Vencida</button>
-                </>
-              )}
               {activeModule === "intelligence" && (
                 <>
                   <button className={intelligenceView === "locals_occupancy" ? "active" : ""} type="button" onClick={() => setIntelligenceView("locals_occupancy")}>📍 Análisis de Locales</button>
@@ -1394,7 +1369,7 @@ export default function DashboardClient() {
                 </>
               )}
             </div>
-            <small>{activeModule === "contracts" ? contractScopeLabel : activeModule === "finances" ? financeScopeLabel : isGlobalContext ? "Todas las zonas" : currentLocation.shortName}</small>
+            <small>{activeModule === "contracts" ? contractScopeLabel : isGlobalContext ? "Todas las zonas" : currentLocation.shortName}</small>
           </nav>
         )}
         {dataWarning && <div className="data-warning" role="status">{dataWarning}</div>}
@@ -1409,14 +1384,15 @@ export default function DashboardClient() {
             onToggleBoardroomMode={toggleBoardroomMode}
             onNavigateToModule={(mod) => openModule(mod)}
             onSelectContract={(num) => {
-              openModule("contracts");
-              updateSearch(num);
+              const target = (num || "").trim();
+              setContractLocationId("all");
+              setContractSearchQuery(target);
+              setContractGerenciaFilter("all");
+              setContractView("summary");
+              setActiveModule("contracts");
             }}
             onSelectLocal={(nom, locId) => {
-              if (locId && datasets[locId]) changeLocation(locId);
-              openModule("locals");
-              setLocalView("directory");
-              updateSearch(nom);
+              handleOpenLocalFromAnywhere(nom, locId ?? null);
             }}
           />
         ) : activeModule === "home" && homeView === "global" ? (
@@ -1447,8 +1423,6 @@ export default function DashboardClient() {
             onSelectLocation={(selectedLocId) => changeLocation(selectedLocId)}
             onOpenLocal={handleOpenLocalFromAnywhere}
           />
-        ) : activeModule === "finances" ? (
-          <FinanceCenter records={financeRecords} scopeLabel={financeScopeLabel} onUpload={() => setShowUpload(true)} />
         ) : activeModule === "reports" ? (
           <ReportsCenter
             datasets={datasets}

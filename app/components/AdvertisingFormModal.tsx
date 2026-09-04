@@ -8,6 +8,7 @@ interface AdvertisingFormModalProps {
   onClose: () => void;
   onSave: (unit: AdvertisingSpaceRecord) => void;
   initialRecord?: AdvertisingSpaceRecord | null;
+  nextDefaultId?: string;
 }
 
 const MEDIA_TYPES = [
@@ -37,6 +38,7 @@ export default function AdvertisingFormModal({
   onClose,
   onSave,
   initialRecord,
+  nextDefaultId = "",
 }: AdvertisingFormModalProps) {
   const [idUnidad, setIdUnidad] = useState("");
   const [codigoNomenclatura, setCodigoNomenclatura] = useState("");
@@ -73,8 +75,9 @@ export default function AdvertisingFormModal({
       setEstatusOperativo(initialRecord.estatus_operativo || "Operando");
       setObservaciones(initialRecord.observaciones || "");
     } else {
-      setIdUnidad("");
-      setCodigoNomenclatura("");
+      const generatedId = nextDefaultId || `PUB-${Date.now().toString().slice(-4)}`;
+      setIdUnidad(generatedId);
+      setCodigoNomenclatura(`EP-${generatedId.replace(/^PUB-?/i, "")}`);
       setTipoMedio("Video Wall");
       setCustomTipoMedio("");
       setModulo("A");
@@ -86,7 +89,7 @@ export default function AdvertisingFormModal({
       setEstatusOperativo("Operando");
       setObservaciones("");
     }
-  }, [initialRecord, isOpen]);
+  }, [initialRecord, isOpen, nextDefaultId]);
 
   if (!isOpen) return null;
 

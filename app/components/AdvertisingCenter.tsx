@@ -96,6 +96,21 @@ export default function AdvertisingCenter({
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingUnit, setEditingUnit] = useState<AdvertisingSpaceRecord | null>(null);
 
+  // Calcular automáticamente el siguiente ID correlativo para evitar que el usuario tenga que buscarlo
+  const nextAvailableUnitId = useMemo(() => {
+    let maxNum = 0;
+    advertisingSpaces.forEach((s) => {
+      const id = s.id_unidad || "";
+      const match = id.match(/^(?:PUB|EP)-?(\d+)$/i);
+      if (match) {
+        const n = parseInt(match[1], 10);
+        if (n > maxNum) maxNum = n;
+      }
+    });
+    const nextNum = (maxNum > 0 ? maxNum : advertisingSpaces.length) + 1;
+    return `PUB-${String(nextNum).padStart(3, "0")}`;
+  }, [advertisingSpaces]);
+
   const handleOpenAddUnit = () => {
     setEditingUnit(null);
     setIsFormModalOpen(true);
@@ -1279,6 +1294,7 @@ export default function AdvertisingCenter({
         onClose={() => setIsFormModalOpen(false)}
         onSave={handleSaveUnit}
         initialRecord={editingUnit}
+        nextDefaultId={nextAvailableUnitId}
       />
     </div>
   );

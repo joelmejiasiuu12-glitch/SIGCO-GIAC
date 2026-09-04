@@ -15,7 +15,7 @@ interface GscDashboardProps {
   allLocales: LocalRecord[];
   isBoardroomMode?: boolean;
   onToggleBoardroomMode?: () => void;
-  onNavigateToModule?: (module: "home" | "locals" | "contracts" | "finances" | "reports" | "intelligence") => void;
+  onNavigateToModule?: (module: "home" | "locals" | "contracts" | "reports" | "advertising" | "intelligence" | "gsc_dashboard") => void;
   onSelectContract?: (contractNumber: string) => void;
   onSelectLocal?: (nomenclatura: string, locationId?: string) => void;
 }
@@ -1463,7 +1463,26 @@ export default function GscDashboard({
                   return (
                     <tr key={c.contractNumber}>
                       <td className="cell-contrato">
-                        <strong>{c.contractNumber}</strong>
+                        <button
+                          type="button"
+                          className="contract-link-btn"
+                          onClick={() => onSelectContract && c.contractNumber && onSelectContract(c.contractNumber)}
+                          title="Ver en Padrón de Contratos"
+                          style={{
+                            background: "none",
+                            border: "none",
+                            padding: 0,
+                            color: "#ac182c",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            textAlign: "left",
+                            textDecoration: "underline",
+                            fontFamily: "inherit",
+                            fontSize: "inherit"
+                          }}
+                        >
+                          {c.contractNumber}
+                        </button>
                       </td>
                       <td className="cell-marca">
                         <strong>{c.brand || "Sin marca"}</strong>
@@ -1475,9 +1494,28 @@ export default function GscDashboard({
                         <div className="locals-chips-cluster">
                           {localsList.length > 0 ? (
                             localsList.map((loc, idx) => (
-                              <span key={`${loc.nomenclatura || idx}-${idx}`} className="local-badge-mini">
-                                {loc.nomenclatura || "Local"}
-                              </span>
+                              <button
+                                key={`${loc.nomenclatura || idx}-${idx}`}
+                                type="button"
+                                className="local-badge-mini"
+                                onClick={() => onSelectLocal && loc.nomenclatura && onSelectLocal(loc.nomenclatura, loc.contractLocationId || undefined)}
+                                title={`Ver local ${loc.nomenclatura || ""} en el directorio`}
+                                style={{
+                                  cursor: "pointer",
+                                  border: "1px solid #dfe4e7",
+                                  background: "#f0f4f8",
+                                  color: "#1d2939",
+                                  padding: "3px 8px",
+                                  borderRadius: "6px",
+                                  fontSize: "11px",
+                                  fontWeight: 600,
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "3px"
+                                }}
+                              >
+                                📍 {loc.nomenclatura || "Local"}
+                              </button>
                             ))
                           ) : (
                             <span className="text-muted">Sin local</span>

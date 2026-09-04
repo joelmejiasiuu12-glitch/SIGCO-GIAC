@@ -63,9 +63,9 @@ test("supports partial-zone workbooks and the ETP contractual columns", async ()
   assert.match(upload, /"gestor":?\s*"manager"|gestor:\s*"manager"/);
   assert.match(upload, /spanishMonths/);
   assert.match(dashboard, /Módulos de SIGCO/);
-  assert.match(dashboard, /<span>02<\/span>Locales/);
-  assert.match(dashboard, /<span>0[34]<\/span>Contratos/);
-  assert.match(dashboard, /<span>0[45]<\/span>Finanzas/);
+  assert.match(dashboard, /<span>03<\/span>Publicidad/);
+  assert.match(dashboard, /<span>04<\/span>Contratos/);
+  assert.doesNotMatch(dashboard, /<span>\d+<\/span>Finanzas/);
   assert.doesNotMatch(dashboard, /<span>04<\/span>Relación/);
   assert.match(contracts, /Resumen de contratos/);
   assert.match(contracts, /Relación Local–Contrato/);
@@ -263,7 +263,7 @@ test("organizes navigation into primary modules and contextual views", async () 
   const dashboard = await readFile(new URL("../app/DashboardClient.tsx", import.meta.url), "utf8");
   const contracts = await readFile(new URL("../app/components/ContractCenter.tsx", import.meta.url), "utf8");
 
-  assert.match(dashboard, /type PrimaryModule = "home" \| "locals" \| "contracts" \| "finances" \| "reports"/);
+  assert.match(dashboard, /type PrimaryModule = "home" \| "locals" \| "advertising" \| "contracts" \| "reports"/);
   assert.match(dashboard, /Resumen global/);
   assert.match(dashboard, /Resumen de zona/);
   assert.match(dashboard, /En preformalización/);
@@ -272,7 +272,6 @@ test("organizes navigation into primary modules and contextual views", async () 
   assert.match(dashboard, /Cancelados/);
   assert.match(dashboard, /Fenecidos/);
   assert.match(dashboard, /Convenios/);
-  assert.match(dashboard, /Resumen financiero/);
   assert.match(dashboard, /Zona comercial/);
   assert.match(contracts, /preformalization/);
   assert.match(contracts, /formalization/);
@@ -494,31 +493,18 @@ test("adds inventory-backed analysis to the four commercial distribution charts"
   assert.match(styles, /\.chart-analysis-toggle/);
 });
 
-test("adds the first-stage finance dashboard and removes Relation from primary navigation", async () => {
+test("organizes primary navigation cleanly and removes obsolete modules", async () => {
   const dashboard = await readFile(new URL("../app/DashboardClient.tsx", import.meta.url), "utf8");
-  const finance = await readFile(new URL("../app/components/FinanceCenter.tsx", import.meta.url), "utf8");
+  const advertising = await readFile(new URL("../app/components/AdvertisingCenter.tsx", import.meta.url), "utf8");
 
-  assert.match(dashboard, /<span>0[34]<\/span>Contratos/);
-  assert.match(dashboard, /<span>0[45]<\/span>Finanzas/);
-  assert.match(dashboard, /<span>0[56]<\/span>Reportes/);
+  assert.match(dashboard, /<span>03<\/span>Publicidad/);
+  assert.match(dashboard, /<span>04<\/span>Contratos/);
+  assert.match(dashboard, /<span>05<\/span>Reportes/);
+  assert.match(dashboard, /<span>06<\/span>Análisis/);
   assert.doesNotMatch(dashboard, /<span>04<\/span>Relación/);
-  assert.match(dashboard, /<FinanceCenter records=\{financeRecords\}/);
-  assert.match(dashboard, /financeLocationId === "all" \? Object\.values\(datasets\)\.flat\(\)/);
-  assert.match(finance, /isOperating\(record\) && record\.monthlyRent !== null/);
-  assert.match(finance, /projectedMonths\(record\.renewalDate\)/);
-  assert.match(finance, /Renta mensual contratada/);
-  assert.match(finance, /Proyección próximos 12 meses/);
-  assert.match(finance, /Costo promedio por m²/);
-  assert.match(finance, /Locales con participación/);
-  assert.match(finance, /Renta mensual por zona/);
-  assert.match(finance, /Distribución de renta mensual/);
-  assert.match(finance, /Concentración de renta mensual/);
-  assert.match(finance, /Renta expuesta por vigencia/);
-  assert.match(finance, /FINANCE_PAGE_SIZE = 10/);
-  assert.match(finance, /Finanzas de los contratos/);
-  assert.match(finance, /Página \{effectivePage\} de \{totalPages\}/);
-  assert.match(finance, /Participación e histórico mensual/);
-  assert.match(finance, /Datos de Cobranza pendientes/);
+  assert.doesNotMatch(dashboard, /<span>\d+<\/span>Finanzas/);
+  assert.match(advertising, /AdvertisingFormModal/);
+  assert.match(advertising, /nextAvailableUnitId/);
 });
 
 test("adds the institutional consultation module for the commercial direction", async () => {
