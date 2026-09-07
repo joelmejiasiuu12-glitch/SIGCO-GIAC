@@ -89,6 +89,58 @@ type ModulePerformance = {
 type PortfolioField = "giroOperativo" | "giroIata" | "lado" | "nivel" | "area";
 type PortfolioAnalysisKind = "giro" | "zona" | "nivel" | "area";
 
+export function getLocationGiroConfig(locationId: string): {
+  title: string;
+  field: PortfolioField;
+  getValue: (record: LocalRecord) => string;
+} {
+  switch (locationId) {
+    case "parque-santa-lucia":
+      return {
+        title: "Giro comercial (ACI)",
+        field: "giroOperativo",
+        getValue: (record) => String(record.giroOperativo || record.giroIndaabin || "Sin giro asignado").trim() || "Sin giro asignado",
+      };
+    case "parque-revolucion":
+      return {
+        title: "Giro comercial (IATA)",
+        field: "giroIata",
+        getValue: (record) => String(record.giroIata || record.giroOperativo || "Sin giro asignado").trim() || "Sin giro asignado",
+      };
+    case "carga-aduana":
+      return {
+        title: "Giro comercial (IATA)",
+        field: "giroIata",
+        getValue: (record) => String(record.giroIata || record.giroOperativo || "Sin giro asignado").trim() || "Sin giro asignado",
+      };
+    case "autobuses-plaza":
+      return {
+        title: "Giro operativo",
+        field: "giroOperativo",
+        getValue: (record) => String(record.giroOperativo || record.giroIata || "Sin giro asignado").trim() || "Sin giro asignado",
+      };
+    case "ciudad-aeroportuaria":
+      return {
+        title: "Giro comercial (IATA)",
+        field: "giroIata",
+        getValue: (record) => String(record.giroIata || record.giroOperativo || "Sin giro asignado").trim() || "Sin giro asignado",
+      };
+    case "calzada-mamuts":
+      return {
+        title: "Giro comercial",
+        field: "giroOperativo",
+        getValue: (record) => String(record.giroOperativo || record.giroIata || "Sin giro asignado").trim() || "Sin giro asignado",
+      };
+    case "etp":
+    default:
+      return {
+        title: "Giro comercial (IATA)",
+        field: "giroIata",
+        getValue: (record) => normalizeGiroIata(record),
+      };
+  }
+}
+
 type PortfolioInsight = {
   title: string;
   metrics: { label: string; value: string }[];
@@ -222,7 +274,7 @@ function DonutChart({
   colors?: string[];
   center: string;
   wide?: boolean;
-  analysis?: { records: LocalRecord[]; field: PortfolioField; kind: PortfolioAnalysisKind };
+  analysis?: { records: LocalRecord[]; field: PortfolioField; kind: PortfolioAnalysisKind; locationId?: string };
   onOpenFullAnalysis?: () => void;
 }) {
   const [selectedLabel, setSelectedLabel] = useState<string | null>(data[0]?.[0] ?? null);
@@ -231,7 +283,7 @@ function DonutChart({
     ? selectedLabel
     : data[0]?.[0] ?? null;
   const insight = analysis && effectiveLabel
-    ? buildPortfolioInsight(analysis.records, analysis.field, effectiveLabel, data, analysis.kind)
+    ? buildPortfolioInsight(analysis.records, analysis.field, effectiveLabel, data, analysis.kind, analysis.locationId)
     : null;
   return (
     <article className={`executive-card donut-card${wide ? " wide-chart" : ""}`}>
@@ -748,10 +800,12 @@ function buildPortfolioInsight(
   selectedLabel: string,
   data: [string, number][],
   kind: PortfolioAnalysisKind,
+  locationId?: string,
 ): PortfolioInsight {
+  const giroConfig = locationId ? getLocationGiroConfig(locationId) : null;
   const selectedRecords = records.filter((record) => {
-    if (field === "giroIata") {
-      return normalizeGiroIata(record) === selectedLabel;
+    if (kind === "giro" && giroConfig) {
+      return giroConfig.getValue(record) === selectedLabel;
     }
     const label = String(record[field] ?? "Sin dato").trim() || "Sin dato";
     return label === selectedLabel;
@@ -1300,15 +1354,17 @@ export default function SummaryDashboard({
   const [vacancyAnalysisOpen, setVacancyAnalysisOpen] = useState(false);
   const selectedVacancyPreview = vacancyInsight?.facts.find((fact) => fact.label === selectedVacancyFact) ?? null;
 
-  // Mezcla de oferta basada en las 5 categorías oficiales de Giro IATA
-  const giroIataData = useMemo(() => {
+  const giroConfig = useMemo(() => getLocationGiroConfig(locationId), [locationId]);
+
+  // Mezcla de oferta basada en la columna y clasificación oficial de cada zona
+  const giroChartData = useMemo(() => {
     const counts = new Map<string, number>();
     records.forEach((record) => {
-      const val = normalizeGiroIata(record);
+      const val = giroConfig.getValue(record);
       counts.set(val, (counts.get(val) ?? 0) + 1);
     });
     return [...counts.entries()].sort((a, b) => b[1] - a[1]);
-  }, [records]);
+  }, [records, giroConfig]);
 
   const availability = [...new Set(records.map((record) => record.lado || "Sin dato"))]
     .map((lado) => {
@@ -1386,7 +1442,7 @@ export default function SummaryDashboard({
 
       <div className="executive-grid">
         <StatusOverview title={statusTitle} records={records} recordLabel={recordLabel} />
-        <DonutChart title="Giro comercial (IATA)" kicker="Mezcla de oferta" data={giroIataData} center={recordLabel} analysis={{ records, field: "giroIata", kind: "giro" }} onOpenFullAnalysis={() => onOpenAnalysis("mix")} />
+        <DonutChart title={giroConfig.title} kicker="Mezcla de oferta" data={giroChartData} center={recordLabel} analysis={{ records, field: giroConfig.field, kind: "giro", locationId }} onOpenFullAnalysis={() => onOpenAnalysis("mix")} />
         {showZone && <DonutChart title="Distribución por zona" kicker="Implantación territorial" data={countBy(records, "lado")} center={recordLabel} colors={["#405364", "#ac182c", "#00886f"]} analysis={{ records, field: "lado", kind: "zona" }} />}
         {showLevels && <VerticalBars title={`${capitalizedLabel} por nivel`} kicker="Implantación vertical" data={levels} color="#09212e" totalLabel={recordLabel} analysis={{ records, field: "nivel", kind: "nivel" }} onOpenFullAnalysis={() => onOpenAnalysis("levels")} />}
         {showAreaType && <DonutChart title="Tipo de área" kicker="Ubicación operativa" data={countBy(records, "area")} center={recordLabel} colors={["#00886f", "#405364", "#ac182c"]} analysis={{ records, field: "area", kind: "area" }} onOpenFullAnalysis={() => onOpenAnalysis("area_type")} />}

@@ -483,7 +483,7 @@ test("adds inventory-backed analysis to the four commercial distribution charts"
   assert.match(summaryDashboard, /Concentración vertical/);
   assert.match(summaryDashboard, /Giros identificados/);
   assert.match(summaryDashboard, /sin atribuir todavía afluencia de pasajeros/);
-  assert.match(summaryDashboard, /field: ("giroIata"|"giroOperativo"), kind: "giro"/);
+  assert.match(summaryDashboard, /field: (giroConfig\.field|"giroIata"|"giroOperativo"), kind: "giro"/);
   assert.match(summaryDashboard, /field: "lado", kind: "zona"/);
   assert.match(summaryDashboard, /field: "nivel", kind: "nivel"/);
   assert.match(summaryDashboard, /field: "area", kind: "area"/);
