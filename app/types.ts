@@ -264,6 +264,78 @@ export function getSpaceType(record: LocalRecord, locationId?: string): string {
   return "Local";
 }
 
+export const IATA_GIRO_CATEGORIES = [
+  "ALIMENTOS Y BEBIDAS",
+  "DUTY FREE",
+  "RETAIL",
+  "SERVICIOS",
+  "TIENDA DE CONVENIENCIA",
+] as const;
+
+export function normalizeGiroIata(record: LocalRecord | null | undefined): string {
+  if (!record) return "Sin giro asignado";
+
+  const rawIata = normalizedText(record.giroIata);
+  const rawOperativo = normalizedText(record.giroOperativo);
+  const rawLine = normalizedText(record.commercialLine);
+  const rawBrand = normalizedText(record.marca);
+  const rawInda = normalizedText(record.giroIndaabin);
+  const rawObs = normalizedText(record.observaciones);
+
+  const combined = `${rawIata} ${rawOperativo} ${rawLine} ${rawBrand} ${rawInda} ${rawObs}`.trim();
+
+  if (!combined || combined === "sin dato" || combined === "n/a" || combined === "null") {
+    return "Sin giro asignado";
+  }
+
+  // 1. Alimentos y Bebidas
+  if (
+    /aliment|bebid|restauran|cafet|cafe\b|café|food|comida|snack|gourmet|hamburgues|tacos|pizza|bar\b|cervec|helad|palet|pasteler|panader|donas|starbucks|vips|subway|dominos|burger|mcdonald|kfc|carls|chilis|wings|toks|sushi|mariscos|cantina|mezcal|taqueria|taquería/i.test(
+      rawIata || combined
+    )
+  ) {
+    return "ALIMENTOS Y BEBIDAS";
+  }
+
+  // 2. Duty Free
+  if (/duty\s*free|duty\s*paid|libre de impuestos|libres de impuestos|dufry|attenza|tax free/i.test(rawIata || combined)) {
+    return "DUTY FREE";
+  }
+
+  // 3. Tienda de conveniencia
+  if (/conveniencia|oxxo|7\s*eleven|seven|circle\s*k|super\s*city|minisuper|supermercado|extra\b/i.test(rawIata || combined)) {
+    return "TIENDA DE CONVENIENCIA";
+  }
+
+  // 4. Retail (Artículos, ropa, calzado, artesanías, joyería, libros, etc.)
+  if (
+    /retail|articul|tienda|boutique|moda|ropa|calzado|zapater|joyer|accesorios|souvenir|artesan|regalo|electronic|librer|juguet|perfum|cosmetic|equipaj|maleta|comercio|confeccion|tabac|dulcer|miniso|sunglass|optica solar|pineda covalin|quarzo|crocs|samsonite|sanborns/i.test(
+      rawIata || combined
+    )
+  ) {
+    return "RETAIL";
+  }
+
+  // 5. Servicios (Bancos, divisas, arrendadoras, telecom, salud, etc.)
+  if (
+    /servicio|banc|financ|cambio|divisa|remesa|auto|renta de auto|hertz|avis|europcar|sixt|national|budget|alamo|aerolinea|aerolínea|vuelo|volaris|viva|aeromexico|salud|laboratorio|farmacia|medic|optica|óptica|telecom|telefonia|telefonía|telcel|at&t|movistar|internet|logist|mensajer|paquet|dhl|fedex|ups|estafeta|guarder|masaj|spa|estetic|lavander|empaque|maleter|seguro|hotel|lounge|vip|mostrador|taquilla|cajero|atm/i.test(
+      rawIata || combined
+    )
+  ) {
+    return "SERVICIOS";
+  }
+
+  // Direct uppercase comparison fallback
+  const upperIata = String(record.giroIata ?? "").trim().toUpperCase();
+  if (upperIata === "ALIMENTOS Y BEBIDAS") return "ALIMENTOS Y BEBIDAS";
+  if (upperIata === "DUTY FREE") return "DUTY FREE";
+  if (upperIata === "RETAIL") return "RETAIL";
+  if (upperIata === "SERVICIOS") return "SERVICIOS";
+  if (upperIata === "TIENDA DE CONVENIENCIA") return "TIENDA DE CONVENIENCIA";
+
+  return "Sin giro asignado";
+}
+
 export function getGiroCategory(record: LocalRecord): string {
   const rawGiro = String(record.giroOperativo ?? "").trim();
   if (rawGiro && rawGiro.toLowerCase() !== "null" && rawGiro.toLowerCase() !== "undefined") {

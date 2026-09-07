@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import type { AnalysisTarget, EtpCommercialCapacityData, LocalRecord, PassengerTrafficRecord } from "@/app/types";
+import { normalizeGiroIata } from "@/app/types";
 import { LocationIndicators } from "./DirectoryAnalytics";
 
 const numberFormat = new Intl.NumberFormat("es-MX", { maximumFractionDigits: 1 });
@@ -15,6 +16,12 @@ const statusPalette: Record<string, string> = {
   "EN PROCESO DE ASIGNACION": "#39a9db",
   FORMALIZADO: "#8a633f",
   "EN ADAPTACION": "#f2c94c",
+  "ALIMENTOS Y BEBIDAS": "#00886f",
+  "DUTY FREE": "#b56d16",
+  "RETAIL": "#39a9db",
+  "SERVICIOS": "#405364",
+  "TIENDA DE CONVENIENCIA": "#8a633f",
+  "Sin giro asignado": "#ac182c",
 };
 
 const statusInkPalette: Record<string, string> = {
@@ -743,6 +750,9 @@ function buildPortfolioInsight(
   kind: PortfolioAnalysisKind,
 ): PortfolioInsight {
   const selectedRecords = records.filter((record) => {
+    if (field === "giroIata") {
+      return normalizeGiroIata(record) === selectedLabel;
+    }
     const label = String(record[field] ?? "Sin dato").trim() || "Sin dato";
     return label === selectedLabel;
   });
@@ -1290,11 +1300,11 @@ export default function SummaryDashboard({
   const [vacancyAnalysisOpen, setVacancyAnalysisOpen] = useState(false);
   const selectedVacancyPreview = vacancyInsight?.facts.find((fact) => fact.label === selectedVacancyFact) ?? null;
 
-  // Mezcla de oferta basada en Giro IATA (con fallback a Giro Operativo)
+  // Mezcla de oferta basada en las 5 categorías oficiales de Giro IATA
   const giroIataData = useMemo(() => {
     const counts = new Map<string, number>();
     records.forEach((record) => {
-      const val = String(record.giroIata || record.giroOperativo || "Sin giro asignado").trim() || "Sin giro asignado";
+      const val = normalizeGiroIata(record);
       counts.set(val, (counts.get(val) ?? 0) + 1);
     });
     return [...counts.entries()].sort((a, b) => b[1] - a[1]);
