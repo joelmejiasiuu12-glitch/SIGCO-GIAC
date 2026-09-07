@@ -167,8 +167,9 @@ const worker = {
             INSERT INTO locales (
               nomenclatura, zona_id, lado, area, modulo, nivel, metraje, 
               metraje_original, metraje_construido, tipo_espacio, estatus_fisico, 
-              situacion, subdireccion_responsable, gerencia, observaciones
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              situacion, subdireccion_responsable, gerencia, observaciones,
+              giro_iata, giro_operativo, giro_indaabin, marca
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `);
 
           const result = await stmt.bind(
@@ -186,7 +187,11 @@ const worker = {
             body.situacion ?? null,
             body.subdireccion_responsable ?? body.subdireccion ?? "SVS COM",
             body.gerencia ?? "GSC",
-            body.observaciones ?? null
+            body.observaciones ?? null,
+            body.giroIata ?? body.giro_iata ?? null,
+            body.giroOperativo ?? body.giro_operativo ?? null,
+            body.giroIndaabin ?? body.giro_indaabin ?? null,
+            body.marca ?? null
           ).run();
 
           // Manejo opcional de marca y contrato si se envía
@@ -194,8 +199,13 @@ const worker = {
           if (marcaName) {
             try {
               await env.DB.prepare(
-                "INSERT OR IGNORE INTO marcas (nombre_comercial, giro_operativo) VALUES (?, ?)"
-              ).bind(marcaName, body.giroOperativo ?? body.giro_operativo ?? null).run();
+                "INSERT OR IGNORE INTO marcas (nombre_comercial, giro_operativo, giro_iata, giro_indaabin) VALUES (?, ?, ?, ?)"
+              ).bind(
+                marcaName,
+                body.giroOperativo ?? body.giro_operativo ?? null,
+                body.giroIata ?? body.giro_iata ?? null,
+                body.giroIndaabin ?? body.giro_indaabin ?? null
+              ).run();
             } catch {}
           }
 
@@ -241,6 +251,10 @@ const worker = {
                 subdireccion_responsable = COALESCE(?, subdireccion_responsable),
                 gerencia = ?,
                 observaciones = ?,
+                giro_iata = COALESCE(?, giro_iata),
+                giro_operativo = COALESCE(?, giro_operativo),
+                giro_indaabin = COALESCE(?, giro_indaabin),
+                marca = COALESCE(?, marca),
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ? OR nomenclatura = ?
           `);
@@ -258,6 +272,10 @@ const worker = {
             body.subdireccion_responsable ?? body.subdireccion ?? null,
             body.gerencia ?? null,
             body.observaciones ?? null,
+            body.giroIata ?? body.giro_iata ?? null,
+            body.giroOperativo ?? body.giro_operativo ?? null,
+            body.giroIndaabin ?? body.giro_indaabin ?? null,
+            body.marca ?? null,
             body.id ?? null,
             nom
           ).run();

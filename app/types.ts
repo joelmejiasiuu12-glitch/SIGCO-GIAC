@@ -316,9 +316,9 @@ export function normalizeGiroIata(record: LocalRecord | null | undefined): strin
     return "RETAIL";
   }
 
-  // 5. Servicios (Bancos, divisas, arrendadoras, telecom, salud, etc.)
+  // 5. Servicios (Bancos, divisas, arrendadoras, transporte terrestre, telecom, salud, etc.)
   if (
-    /servicio|banc|financ|cambio|divisa|remesa|auto|renta de auto|hertz|avis|europcar|sixt|national|budget|alamo|aerolinea|aerolínea|vuelo|volaris|viva|aeromexico|salud|laboratorio|farmacia|medic|optica|óptica|telecom|telefonia|telefonía|telcel|at&t|movistar|internet|logist|mensajer|paquet|dhl|fedex|ups|estafeta|guarder|masaj|spa|estetic|lavander|empaque|maleter|seguro|hotel|lounge|vip|mostrador|taquilla|cajero|atm/i.test(
+    /servicio|banc|financ|cambio|divisa|remesa|auto|renta de auto|transporte|taxi|autobus|autobús|aerolinea|aerolínea|vuelo|volaris|viva|aeromexico|salud|laboratorio|farmacia|medic|optica|óptica|telecom|telefonia|telefonía|telcel|at&t|movistar|internet|logist|mensajer|paquet|dhl|fedex|ups|estafeta|guarder|masaj|spa|estetic|lavander|empaque|maleter|seguro|hotel|lounge|vip|mostrador|taquilla|cajero|atm/i.test(
       rawIata || combined
     )
   ) {
