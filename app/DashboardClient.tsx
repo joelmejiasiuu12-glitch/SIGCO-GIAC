@@ -809,19 +809,6 @@ export default function DashboardClient() {
   const advancedFilterKeys = advancedFiltersByLocation[locationId] ?? [];
   const availableLocalsList = useMemo(() => Object.values(datasets).flat().map((l) => l.nomenclatura).filter(Boolean), [datasets]);
 
-
-
-  useEffect(() => {
-    const hasSessionData = Object.values(datasets).some((dataset) => dataset.length > 0);
-    if (!hasSessionData) return;
-    const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = "";
-    };
-    window.addEventListener("beforeunload", warnBeforeLeaving);
-    return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
-  }, [datasets]);
-
   useEffect(() => {
     const updateModuleMenuPosition = () => {
       const sentinelTop = moduleMenuSentinelRef.current?.getBoundingClientRect().top ?? 1;

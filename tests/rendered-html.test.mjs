@@ -34,7 +34,6 @@ test("processes the workbook only in browser memory", async () => {
   assert.match(upload, /Object\.fromEntries\(locations\.map/);
   assert.match(upload, /No se enviará ni se guardará en ningún servidor/i);
   assert.match(dashboard, /useState<Dataset>\(emptyDatasets\)/);
-  assert.match(dashboard, /beforeunload/);
   assert.match(globalSummary, /datasets: Dataset/);
   assert.doesNotMatch(`${dashboard}\n${upload}\n${globalSummary}`, /localStorage|sessionStorage|indexedDB|bundledLocationData/);
   assert.deepEqual(hosting, { project_id: "appgprj_6a60006e3d188191a7a922f9e6b7949b" });
